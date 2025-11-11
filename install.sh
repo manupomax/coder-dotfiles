@@ -6,14 +6,12 @@
 
 set -e
 
-# Imposta credenziali pgAdmin iniziali
-export PGADMIN_SETUP_EMAIL="admin@example.com"
-export PGADMIN_SETUP_PASSWORD="StrongPassword123"
-
-# Imposta variabili ambiente per server mode
-export PGADMIN_CONFIG_SERVER_MODE=True
-export PGADMIN_CONFIG_DEFAULT_SERVER='0.0.0.0'
-export PGADMIN_CONFIG_DEFAULT_SERVER_PORT=5050
+# ==============================
+# CONFIGURAZIONE PERSONALIZZABILE
+# ==============================
+PGADMIN_EMAIL="admin@example.com"
+PGADMIN_PASSWORD="StrongPassword123"
+PGADMIN_PORT="5050"
 
 echo "=== [pgAdmin Setup] Avvio installazione pgAdmin 4 ==="
 
@@ -23,10 +21,10 @@ echo "Python rilevato: $PYTHON_VERSION"
 
 # Aggiorna pacchetti e installa dipendenze
 sudo apt-get update -y
-sudo apt-get install -y curl gnupg lsb-release python3-pip netcat
+# sudo apt-get install -y curl gnupg lsb-release python3-pip netcat
 
 # Aggiorna pip
-pip3 install --upgrade pip
+# pip3 install --upgrade pip
 
 #
 # Setup the repository
@@ -49,7 +47,20 @@ sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] h
 # sudo apt install pgadmin4-desktop
 
 # Install for web mode only: 
-sudo apt install -y pgadmin4-web 
+sudo apt-get install -y pgadmin4-web 
+
+# ==============================
+# CONFIGURAZIONE AUTOMATICA
+# ==============================
+echo "Configurazione non interattiva di pgAdmin4..."
+
+sudo bash -c "cat > /etc/pgadmin4/config_local.py <<EOF
+SERVER_MODE = True
+DEFAULT_SERVER = '0.0.0.0'
+DEFAULT_SERVER_PORT = ${PGADMIN_PORT}
+PGADMIN_SETUP_EMAIL = '${PGADMIN_EMAIL}'
+PGADMIN_SETUP_PASSWORD = '${PGADMIN_PASSWORD}'
+EOF"
 
 # Configure the webserver, if you installed pgadmin4-web:
 sudo /usr/pgadmin4/bin/setup-web.sh
