@@ -10,15 +10,18 @@ PGADMIN_HOME="/usr/pgadmin4"
 
 echo "**************************************************"
 echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (Standalone - Porta 5050)"
+echo "Risoluzione radicale delle dipendenze grafiche (libgbm, libnss, etc.)"
 echo "**************************************************"
 
 export DEBIAN_FRONTEND=noninteractive
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI ---
-echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev, libnspr4, libnss3)..."
-# AGGIUNTI 'libnspr4' e 'libnss3' per risolvere gli errori di librerie native (.so)
+echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti critici..."
+# Installiamo tutte le dipendenze essenziali in un colpo solo.
+# libgtk-3-0 e libgbm1 sono meta-dipendenze che dovrebbero trascinare le altre.
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev libnspr4 libnss3
+sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev \
+    libnspr4 libnss3 libgbm1 libgtk-3-0
 
 # Aggiunta del repository pgAdmin e installazione del pacchetto 'pgadmin4'
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
@@ -28,12 +31,10 @@ sudo apt-get install -y pgadmin4
 
 echo "[1/6] Installazione apt completata."
 
-
-# --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PGADMIN ---
+# --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PYTHON ---
 echo "[2/6] Installazione forzata delle dipendenze Python..."
+# Il problema typer è risolto da qui.
 REQUIREMENTS_FILE="${PGADMIN_HOME}/requirements.txt"
-
-# Installazione aggressiva delle dipendenze Python
 if [ -f "$REQUIREMENTS_FILE" ]; then
     sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed || sudo pip3 install typer flask cryptography --ignore-installed
 else
@@ -45,35 +46,28 @@ echo "[2/6] Dipendenze Python installate."
 
 # --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO ---
 echo "[3/6] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
+# ... (resta invariato) ...
 sudo rm -f "$PGADMIN_HOME/web/config_local.py"
-
-# Scrive il file di configurazione con porta 5050 e accesso remoto
 sudo sh -c "cat > $PGADMIN_HOME/web/config_local.py" <<EOL
 # File di configurazione locale generato da dotfiles
 DEFAULT_SERVER = '0.0.0.0'
 DEFAULT_SERVER_PORT = 5050
 ALLOWED_HOSTS = ['*']
 EOL
-
 sudo chown $USER:$USER "$PGADMIN_HOME/web/config_local.py"
 echo "[3/6] Configurazione completata."
 
 
 # --- 5. ESECUZIONE SETUP CON VARIABILI INLINE ---
 echo "[4/6] Esecuzione di setup-web.sh per creare l'utente..."
-
-# Passiamo le variabili d'ambiente in linea con `sudo`
 sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
      PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
      "$PGADMIN_HOME/bin/setup-web.sh" --yes
-
 echo "[4/6] Setup utente e database completato."
 
 
 # --- 6. AVVIO DEL SERVER PGADMIN STANDALONE (PORTA 5050) ---
 echo "[5/6] Avvio del server pgAdmin Standalone in background sulla Porta 5050..."
-
-# Avviamo il server utilizzando il suo script di avvio designato, come utente Coder.
 nohup "$PGADMIN_HOME/bin/pgadmin4" 2>&1 > pgadmin_server.log &
 
 sleep 2
@@ -84,6 +78,7 @@ then
     echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
+    # Se fallisce qui, potresti dover lanciare manualmente l'eseguibile per vedere l'errore completo
     exit 1
 fi
 
