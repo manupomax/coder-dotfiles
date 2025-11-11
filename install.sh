@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # --- USCITA IMMEDIATA IN CASO DI ERRORE ---
-# Se un comando fallisce, l'intero script si ferma.
 set -e
 
 # --- 1. IMPOSTAZIONI UTENTE (COME RICHIESTO) ---
@@ -14,38 +13,48 @@ echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4"
 echo "Utente admin che sarà creato: $MY_EMAIL"
 echo "**************************************************"
 
-# --- 2. INSTALLAZIONE DI PGADMIN4-WEB ---
 # Imposta DEBIAN_FRONTEND per evitare qualsiasi richiesta interattiva
-# da 'apt' o dai suoi processi secondari (dpkg).
-echo "[1/4] Aggiornamento pacchetti e installazione di pgadmin4-web..."
-
 export DEBIAN_FRONTEND=noninteractive
+
+# --- 2. INSTALLAZIONE PREREQUISITI ---
+# Dobbiamo assicurarci che 'curl' e 'gnupg' siano installati
+# per aggiungere il nuovo repository.
+echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (curl, gnupg)..."
+sudo apt-get update
+sudo apt-get install -y curl ca-certificates gnupg
+
+# --- 3. AGGIUNTA DEL REPOSITORY PGADMIN4 UFFICIALE ---
+echo "[2/6] Importazione della chiave GPG del repository pgAdmin..."
+# Importa la chiave GPG di pgAdmin (metodo moderno)
+sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
+
+echo "[3/6] Aggiunta del repository pgAdmin a sources.list..."
+# Aggiunge il repository alla lista di 'apt'.
+# Usa 'lsb_release -cs' per trovare automaticamente il nome della
+# tua versione di Ubuntu (es. 'jammy', 'focal')
+sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgadmin4-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
+
+
+# --- 4. INSTALLAZIONE DI PGADMIN4-WEB ---
+echo "[4/6] Aggiornamento di apt (con il nuovo repo) e installazione di pgadmin4-web..."
+# ORA 'apt' sa dove trovare il pacchetto.
 sudo apt-get update
 sudo apt-get install -y pgadmin4-web
 
-echo "[1/4] Installazione completata."
+echo "[4/6] Installazione completata."
 
-# --- 3. CREAZIONE DIRECTORY E PERMESSI ---
-# Questo è FONDAMENTALE per evitare l'errore "Database migration failed".
-# Lo script `setup-web.sh` (come root) crea file che il server (come utente 'coder')
-# deve poter leggere/scrivere.
-echo "[2/4] Creazione directory /var/lib/pgadmin4 e /var/log/pgadmin4..."
+
+# --- 5. CREAZIONE DIRECTORY E PERMESSI ---
+echo "[5/6] Creazione/Impostazione permessi per /var/lib/pgadmin4 e /var/log/pgadmin4..."
 sudo mkdir -p /var/lib/pgadmin4 /var/log/pgadmin4
-
-echo "[3/4] Impostazione dei permessi per l'utente Coder ($USER)..."
 sudo chown -R $USER:$USER /var/lib/pgadmin4
 sudo chown -R $USER:$USER /var/log/pgadmin4
+echo "[5/6] Permessi impostati."
 
-echo "[3/4] Permessi impostati."
 
-# --- 4. ESECUZIONE SETUP NON INTERATTIVO ---
-# Questo è il comando chiave.
-# Passiamo le variabili "in linea" con il comando `sudo`.
-# Questo è il metodo più robusto per assicurare che lo script
-# `/usr/pgadmin4/bin/setup-web.sh` le riceva, evitando
-# che `getpass.py` provi a chiedere la password.
-echo "[4/4] Esecuzione di setup-web.sh in modalità non interattiva..."
-
+# --- 6. ESECUZIONE SETUP NON INTERATTIVO ---
+echo "[6/6] Esecuzione di setup-web.sh in modalità non interattiva..."
+# Passiamo le variabili "in linea" per evitare problemi con sudo
 sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
      PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
      /usr/pgadmin4/bin/setup-web.sh --yes
