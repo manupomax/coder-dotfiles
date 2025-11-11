@@ -10,48 +10,44 @@ PGADMIN_HOME="/usr/pgadmin4"
 
 echo "**************************************************"
 echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (Standalone - Porta 5050)"
-echo "Tentativo Finale: Installazione Esplicita delle Dipendenze Native."
+echo "Risoluzione del problema finale: Permessi di Sandbox SUID."
 echo "**************************************************"
 
 export DEBIAN_FRONTEND=noninteractive
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI CRITICI ---
-echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti critici (Python e Nativi)..."
+echo "[1/7] Aggiornamento pacchetti e installazione prerequisiti critici (Python e Nativi)..."
 
 # 1. Installa i prerequisiti minimali (pip, curl, gnupg)
 sudo apt-get update
 sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
 
 # 2. **INSTALLAZIONE MANUALE DI TUTTE LE LIBRERIE NATIVE MANCANTI**
-# Dobbiamo reinstallare esplicitamente tutte quelle che abbiamo trovato:
-# libnspr4, libnss3 (Rete/Sicurezza), libgbm1 (Grafica), libasound2 (Audio)
+# Questo risolve libnspr4, libgbm, libasound, ecc.
 sudo apt-get install -y libnspr4 libnss3 libgbm1 libasound2 libgtk-3-0 libappindicator3-1
 
-# 3. Aggiunta del repository pgAdmin
+# 3. Aggiunta del repository pgAdmin e installazione del pacchetto
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
-sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgadmin4-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
+sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
 sudo apt-get update
-
-# 4. Installazione del pacchetto pgadmin4
-# A questo punto, il pacchetto *dovrebbe* vedere che le dipendenze sono già soddisfatte.
 sudo apt-get install -y pgadmin4
 
-echo "[1/6] Installazione apt completata."
+echo "[1/7] Installazione apt completata."
 
 
 # --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PYTHON ---
-echo "[2/6] Installazione forzata delle dipendenze Python (typer fix)..."
+echo "[2/7] Installazione forzata delle dipendenze Python (typer fix)..."
 REQUIREMENTS_FILE="${PGADMIN_HOME}/requirements.txt"
 if [ -f "$REQUIREMENTS_FILE" ]; then
     sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed || sudo pip3 install typer flask cryptography --ignore-installed
 else
     sudo pip3 install typer flask cryptography --ignore-installed
 fi
-echo "[2/6] Dipendenze Python installate."
+echo "[2/7] Dipendenze Python installate."
 
 
 # --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO ---
-echo "[3/6] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
+echo "[3/7] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
 sudo rm -f "$PGADMIN_HOME/web/config_local.py"
 sudo sh -c "cat > $PGADMIN_HOME/web/config_local.py" <<EOL
 # File di configurazione locale generato da dotfiles
@@ -60,19 +56,29 @@ DEFAULT_SERVER_PORT = 5050
 ALLOWED_HOSTS = ['*']
 EOL
 sudo chown $USER:$USER "$PGADMIN_HOME/web/config_local.py"
-echo "[3/6] Configurazione completata."
+echo "[3/7] Configurazione completata."
 
 
 # --- 5. ESECUZIONE SETUP CON VARIABILI INLINE ---
-echo "[4/6] Esecuzione di setup-web.sh per creare l'utente..."
+echo "[4/7] Esecuzione di setup-web.sh per creare l'utente..."
 sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
      PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
      "$PGADMIN_HOME/bin/setup-web.sh" --yes
-echo "[4/6] Setup utente e database completato."
+echo "[4/7] Setup utente e database completato."
+
+
+# --- 5.5. RISOLUZIONE DEL PERMESSO SUID CHROME-SANDBOX (NUOVO PASSO) ---
+echo "[5/7] Configurazione dei permessi SUID per il sandbox di sicurezza..."
+SANDBOX_PATH="$PGADMIN_HOME/bin/chrome-sandbox"
+# 1. Imposta la proprietà a root
+sudo chown root:root "$SANDBOX_PATH"
+# 2. Imposta i permessi SUID (4755)
+sudo chmod 4755 "$SANDBOX_PATH"
+echo "[5/7] Permessi SUID configurati."
 
 
 # --- 6. AVVIO DEL SERVER PGADMIN STANDALONE (PORTA 5050) ---
-echo "[5/6] Avvio del server pgAdmin Standalone in background sulla Porta 5050..."
+echo "[6/7] Avvio del server pgAdmin Standalone in background sulla Porta 5050..."
 nohup "$PGADMIN_HOME/bin/pgadmin4" 2>&1 > pgadmin_server.log &
 
 sleep 2
@@ -80,13 +86,14 @@ sleep 2
 # Controlla che il processo sia attivo
 if pgrep -f "pgadmin4" > /dev/null
 then
-    echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
+    echo "[6/7] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
+    # Se fallisce qui, potresti dover lanciare manualmente l'eseguibile per vedere l'errore completo
     exit 1
 fi
 
-echo "[6/6] Pulizia e verifica finale..."
+echo "[7/7] Pulizia e verifica finale..."
 rm -f nohup.out
 
 echo "**************************************************"
