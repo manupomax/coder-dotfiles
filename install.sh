@@ -19,7 +19,7 @@ echo "deb [signed-by=/usr/share/keyrings/pgadmin.gpg] https://ftp.postgresql.org
   | sudo tee /etc/apt/sources.list.d/pgadmin4.list
 
 sudo apt-get update -y
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-web
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4
 
 echo "Creazione config_local.py..."
 CONFIG_LOCAL="${WEB_DIR}/config_local.py"
