@@ -6,20 +6,19 @@ set -e
 # --- 1. IMPOSTAZIONI UTENTE ---
 MY_EMAIL="admin@example.com"
 MY_PASSWORD="AdminSecret123!"
+PGADMIN_HOME="/usr/pgadmin4" 
 
 echo "**************************************************"
 echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (Standalone - Porta 5050)"
-echo "Utente admin che sarà creato: $MY_EMAIL"
 echo "**************************************************"
 
 export DEBIAN_FRONTEND=noninteractive
-PGADMIN_HOME="/usr/pgadmin4" 
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI ---
-echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti..."
-# Assicurati che 'python3-pip' sia installato per usare pip3
+echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev)..."
+# Aggiunto python3-dev, spesso necessario per i moduli nativi
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg python3-pip
+sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
 
 # Aggiunta del repository pgAdmin e installazione del pacchetto 'pgadmin4'
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
@@ -27,24 +26,32 @@ sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgadmin4-archive-keyring.gp
 sudo apt-get update
 sudo apt-get install -y pgadmin4
 
-echo "[1/6] Installazione completata."
+echo "[1/6] Installazione apt completata."
 
 
-# --- 3. INSTALLAZIONE DIPENDENZA MANCANTE ('typer') ---
-echo "[2/6] Installazione forzata della dipendenza Python 'typer' nell'ambiente di sistema..."
-# **CRUCIALE:** Ripristiniamo l'uso di SUDO per installare Typer a livello globale.
-# Questo è l'unico modo per garantire che /usr/bin/python3 lo trovi sempre.
+# --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PGADMIN ---
+echo "[2/6] Installazione forzata delle dipendenze Python (incluso 'typer')..."
 
-# Pulizia di qualsiasi installazione precedente (per evitare conflitti)
-sudo pip3 uninstall typer -y || true
+# Il file requirements.txt è spesso in questa directory
+REQUIREMENTS_FILE="${PGADMIN_HOME}/requirements.txt"
 
-# Installazione forzata a livello di sistema
-sudo pip3 install typer
+# Usiamo un controllo per vedere se il file esiste
+if [ -f "$REQUIREMENTS_FILE" ]; then
+    # Installazione aggressiva di tutte le dipendenze nel percorso di sistema
+    # L'opzione --ignore-installed previene conflitti e garantisce l'installazione
+    sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed
+    
+else
+    # Se il requirements.txt non esiste, installiamo manualmente i moduli essenziali (typer, Flask, ecc.)
+    echo "ATTENZIONE: requirements.txt non trovato. Installazione delle dipendenze note."
+    sudo pip3 install typer flask cryptography --ignore-installed
+fi
 
-echo "[2/6] Dipendenza 'typer' installata a livello di sistema."
+echo "[2/6] Dipendenze Python installate."
 
 
 # --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO ---
+# ... (resta invariato) ...
 echo "[3/6] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
 sudo rm -f "$PGADMIN_HOME/web/config_local.py"
 
@@ -63,8 +70,7 @@ echo "[3/6] Configurazione completata."
 # --- 5. ESECUZIONE SETUP NON INTERATTIVO ---
 echo "[4/6] Esecuzione di setup.py per creare l'utente..."
 
-# **IMPORTANTE:** Rimuoviamo la manipolazione del PATH e eseguiamo direttamente.
-# dato che Typer è stato installato a livello di sistema, il setup DEVE funzionare.
+# Esecuzione
 /usr/bin/python3 $PGADMIN_HOME/web/setup.py --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
 
 echo "[4/6] Setup utente e database completato."
