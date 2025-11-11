@@ -10,29 +10,33 @@ PGADMIN_HOME="/usr/pgadmin4"
 
 echo "**************************************************"
 echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (Standalone - Porta 5050)"
-echo "Risoluzione totale delle dipendenze mancanti (Problema APT)."
+echo "Tentativo Finale: Installazione Esplicita delle Dipendenze Native."
 echo "**************************************************"
 
 export DEBIAN_FRONTEND=noninteractive
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI CRITICI ---
-echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti critici..."
+echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti critici (Python e Nativi)..."
 
-# Installa solo i prerequisiti minimali (pip, curl, gnupg)
+# 1. Installa i prerequisiti minimali (pip, curl, gnupg)
 sudo apt-get update
 sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
 
-# Aggiunta del repository pgAdmin
+# 2. **INSTALLAZIONE MANUALE DI TUTTE LE LIBRERIE NATIVE MANCANTI**
+# Dobbiamo reinstallare esplicitamente tutte quelle che abbiamo trovato:
+# libnspr4, libnss3 (Rete/Sicurezza), libgbm1 (Grafica), libasound2 (Audio)
+sudo apt-get install -y libnspr4 libnss3 libgbm1 libasound2 libgtk-3-0 libappindicator3-1
+
+# 3. Aggiunta del repository pgAdmin
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
 sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgadmin4-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
 sudo apt-get update
 
-# **LA MODIFICA CRUCIALE:**
-echo "Forzatura dell'installazione del pacchetto pgadmin4 con tutte le dipendenze raccomandate..."
-# Questo risolve la catena di libasound2, libgbm1, libnss3, ecc.
-sudo apt-get install -y --install-recommends pgadmin4
+# 4. Installazione del pacchetto pgadmin4
+# A questo punto, il pacchetto *dovrebbe* vedere che le dipendenze sono già soddisfatte.
+sudo apt-get install -y pgadmin4
 
-echo "[1/6] Installazione apt completata con tutte le dipendenze."
+echo "[1/6] Installazione apt completata."
 
 
 # --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PYTHON ---
