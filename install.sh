@@ -15,9 +15,10 @@ echo "**************************************************"
 export DEBIAN_FRONTEND=noninteractive
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI ---
-echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev)..."
+echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev, libnspr4)..."
+# AGGIUNTO 'libnspr4' per risolvere l'errore 'libnspr4.so'
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
+sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev libnspr4
 
 # Aggiunta del repository pgAdmin e installazione del pacchetto 'pgadmin4'
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
@@ -29,15 +30,13 @@ echo "[1/6] Installazione apt completata."
 
 
 # --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PGADMIN ---
-echo "[2/6] Installazione forzata delle dipendenze Python (incluso 'typer')..."
+echo "[2/6] Installazione forzata delle dipendenze Python..."
 REQUIREMENTS_FILE="${PGADMIN_HOME}/requirements.txt"
 
-# Installazione aggressiva di tutte le dipendenze nel percorso di sistema
+# Installazione aggressiva delle dipendenze Python
 if [ -f "$REQUIREMENTS_FILE" ]; then
-    echo "Trovato requirements.txt. Installazione delle dipendenze..."
     sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed || sudo pip3 install typer flask cryptography --ignore-installed
 else
-    echo "requirements.txt non trovato. Installazione delle dipendenze note essenziali (typer, Flask, ecc.)."
     sudo pip3 install typer flask cryptography --ignore-installed
 fi
 
@@ -60,12 +59,10 @@ sudo chown $USER:$USER "$PGADMIN_HOME/web/config_local.py"
 echo "[3/6] Configurazione completata."
 
 
-# --- 5. ESECUZIONE SETUP CON VARIABILI INLINE (LA VERA SOLUZIONE) ---
+# --- 5. ESECUZIONE SETUP CON VARIABILI INLINE ---
 echo "[4/6] Esecuzione di setup-web.sh per creare l'utente..."
 
-# **LA MODIFICA CRUCIALE:**
-# Passiamo le variabili d'ambiente con i nomi corretti (PGADMIN_SETUP_*) in linea con `sudo`.
-# Questo soddisfa la richiesta di `root` dello script e fornisce le credenziali in un modo non interattivo.
+# Passiamo le variabili d'ambiente in linea con `sudo`
 sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
      PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
      "$PGADMIN_HOME/bin/setup-web.sh" --yes
@@ -87,6 +84,7 @@ then
     echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
+    # Se fallisce qui, potresti dover lanciare 'pgAdmin4.py' manualmente per vedere l'errore
     exit 1
 fi
 
