@@ -6,6 +6,15 @@
 
 set -e
 
+# Imposta credenziali pgAdmin iniziali
+export PGADMIN_SETUP_EMAIL="admin@example.com"
+export PGADMIN_SETUP_PASSWORD="StrongPassword123"
+
+# Imposta variabili ambiente per server mode
+export PGADMIN_CONFIG_SERVER_MODE=True
+export PGADMIN_CONFIG_DEFAULT_SERVER='0.0.0.0'
+export PGADMIN_CONFIG_DEFAULT_SERVER_PORT=5050
+
 echo "=== [pgAdmin Setup] Avvio installazione pgAdmin 4 ==="
 
 # Controllo versione Python
@@ -46,8 +55,3 @@ sudo apt install -y pgadmin4-web
 sudo /usr/pgadmin4/bin/setup-web.sh
 
 echo "=== [pgAdmin Setup] pgAdmin installato ==="
-
-# Imposta variabili ambiente per server mode
-# export PGADMIN_CONFIG_SERVER_MODE=True
-# export PGADMIN_CONFIG_DEFAULT_SERVER='0.0.0.0'
-# export PGADMIN_CONFIG_DEFAULT_SERVER_PORT=5050
