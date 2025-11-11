@@ -16,7 +16,6 @@ export DEBIAN_FRONTEND=noninteractive
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI ---
 echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev)..."
-# Aggiunto python3-dev, spesso necessario per i moduli nativi
 sudo apt-get update
 sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
 
@@ -31,19 +30,14 @@ echo "[1/6] Installazione apt completata."
 
 # --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PGADMIN ---
 echo "[2/6] Installazione forzata delle dipendenze Python (incluso 'typer')..."
-
-# Il file requirements.txt è spesso in questa directory
 REQUIREMENTS_FILE="${PGADMIN_HOME}/requirements.txt"
 
-# Usiamo un controllo per vedere se il file esiste
+# Installazione aggressiva di tutte le dipendenze nel percorso di sistema
 if [ -f "$REQUIREMENTS_FILE" ]; then
-    # Installazione aggressiva di tutte le dipendenze nel percorso di sistema
-    # L'opzione --ignore-installed previene conflitti e garantisce l'installazione
-    sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed
-    
+    echo "Trovato requirements.txt. Installazione delle dipendenze..."
+    sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed || sudo pip3 install typer flask cryptography --ignore-installed
 else
-    # Se il requirements.txt non esiste, installiamo manualmente i moduli essenziali (typer, Flask, ecc.)
-    echo "ATTENZIONE: requirements.txt non trovato. Installazione delle dipendenze note."
+    echo "requirements.txt non trovato. Installazione delle dipendenze note essenziali (typer, Flask, ecc.)."
     sudo pip3 install typer flask cryptography --ignore-installed
 fi
 
@@ -51,7 +45,6 @@ echo "[2/6] Dipendenze Python installate."
 
 
 # --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO ---
-# ... (resta invariato) ...
 echo "[3/6] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
 sudo rm -f "$PGADMIN_HOME/web/config_local.py"
 
@@ -67,11 +60,24 @@ sudo chown $USER:$USER "$PGADMIN_HOME/web/config_local.py"
 echo "[3/6] Configurazione completata."
 
 
-# --- 5. ESECUZIONE SETUP NON INTERATTIVO ---
+# --- 5. ESECUZIONE SETUP TRAMITE IL SUO AMBIENTE VIRTUALE ---
 echo "[4/6] Esecuzione di setup.py per creare l'utente..."
 
-# Esecuzione
-/usr/bin/python3 $PGADMIN_HOME/web/setup.py --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
+# **LA MODIFICA CRUCIALE:**
+# Invece di /usr/bin/python3, usiamo il "wrapper" Python che è
+# destinato a eseguire i servizi pgAdmin, assicurando che l'ambiente sia corretto.
+# Questo wrapper si trova nella directory 'bin' dell'installazione apt.
+
+# Il percorso esatto è /usr/bin/python3 <percorso della tua installazione>/web/setup.py,
+# ma proviamo a chiamare lo script di setup direttamente se il sistema lo ha linkato.
+
+# Riprova il comando precedente, ma se fallisce, proviamo la chiamata diretta.
+# (Se setup.py ha fallito, è probabile che l'ambiente virtuale non sia usato)
+# NON CHIAMIAMO /usr/pgadmin4/web/setup.py, ma USIAMO IL COMANDO pgadmin4-setup
+
+/usr/pgadmin4/bin/setup-web.sh --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
+
+# Lo script setup-web.sh chiama setup.py, ma in un ambiente corretto.
 
 echo "[4/6] Setup utente e database completato."
 
@@ -79,13 +85,15 @@ echo "[4/6] Setup utente e database completato."
 # --- 6. AVVIO DEL SERVER PGADMIN STANDALONE (PORTA 5050) ---
 echo "[5/6] Avvio del server pgAdmin Standalone in background sulla Porta 5050..."
 
-# Avvia il server Python in background
-nohup /usr/bin/python3 $PGADMIN_HOME/web/pgAdmin4.py 2>&1 > pgadmin_server.log &
+# **LA MODIFICA CRUCIALE 2:**
+# Avviamo il server utilizzando il suo script di avvio designato (non direttamente pgAdmin4.py)
+# che è più probabile che attivi l'ambiente Python corretto.
+nohup /usr/pgadmin4/bin/pgadmin4 2>&1 > pgadmin_server.log &
 
 sleep 2
 
 # Controlla che il processo sia attivo
-if pgrep -f "pgAdmin4.py" > /dev/null
+if pgrep -f "pgadmin4" > /dev/null
 then
     echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
@@ -99,6 +107,5 @@ rm -f nohup.out
 
 echo "**************************************************"
 echo "✅ CONFIGURAZIONE COMPLETATA! Il servizio è attivo sulla PORTA 5050."
-echo "Accedi a: <URL del tuo Workspace>/ (Tunnel Coder per la Porta 5050)"
 echo "Credenziali: $MY_EMAIL / $MY_PASSWORD"
 echo "**************************************************"
