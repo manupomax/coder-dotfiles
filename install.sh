@@ -10,7 +10,7 @@ PGADMIN_HOME="/usr/pgadmin4"
 
 echo "**************************************************"
 echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (Standalone - Porta 5050)"
-echo "Risoluzione del problema finale: Permessi di Sandbox SUID."
+echo "Utilizzo dei comandi ufficiali per il repository e risoluzione dei problemi ambientali."
 echo "**************************************************"
 
 export DEBIAN_FRONTEND=noninteractive
@@ -23,14 +23,21 @@ sudo apt-get update
 sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
 
 # 2. **INSTALLAZIONE MANUALE DI TUTTE LE LIBRERIE NATIVE MANCANTI**
-# Questo risolve libnspr4, libgbm, libasound, ecc.
+# Risolve libnspr4, libgbm, libasound, ecc.
 sudo apt-get install -y libnspr4 libnss3 libgbm1 libasound2 libgtk-3-0 libappindicator3-1
 
-# 3. Aggiunta del repository pgAdmin e installazione del pacchetto
-sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
-sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
-sudo apt-get update
-sudo apt-get install -y pgadmin4
+# 3. **UTILIZZO DEI COMANDI UFFICIALI PER CHIAVE E REPOSITORY**
+echo "Aggiunta della chiave GPG e del repository ufficiale di pgAdmin..."
+
+# Comando Ufficiale 1: Installa la chiave pubblica
+curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
+
+# Comando Ufficiale 2: Crea il file di configurazione e aggiorna apt
+sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list && apt update'
+
+# 4. Installazione del pacchetto pgadmin4
+# Usiamo apt install pgadmin4 (come da documentazione ufficiale)
+sudo apt install -y pgadmin4
 
 echo "[1/7] Installazione apt completata."
 
@@ -67,12 +74,10 @@ sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
 echo "[4/7] Setup utente e database completato."
 
 
-# --- 5.5. RISOLUZIONE DEL PERMESSO SUID CHROME-SANDBOX (NUOVO PASSO) ---
+# --- 5.5. RISOLUZIONE DEL PERMESSO SUID CHROME-SANDBOX ---
 echo "[5/7] Configurazione dei permessi SUID per il sandbox di sicurezza..."
 SANDBOX_PATH="$PGADMIN_HOME/bin/chrome-sandbox"
-# 1. Imposta la proprietà a root
 sudo chown root:root "$SANDBOX_PATH"
-# 2. Imposta i permessi SUID (4755)
 sudo chmod 4755 "$SANDBOX_PATH"
 echo "[5/7] Permessi SUID configurati."
 
@@ -89,7 +94,6 @@ then
     echo "[6/7] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
-    # Se fallisce qui, potresti dover lanciare manualmente l'eseguibile per vedere l'errore completo
     exit 1
 fi
 
