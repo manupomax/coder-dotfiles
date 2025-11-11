@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =========================================================
-# install.sh — Installazione automatica di pgAdmin4 su Linux
-# Compatibile Python 3.10 e Coder
+# install.sh — Installazione pgAdmin4 in server mode su Linux
+# Ottimizzato per Coder (Python 3.10+, port forwarding)
 # =========================================================
 
 set -e
@@ -11,8 +11,8 @@ echo "=== [pgAdmin Setup] Avvio installazione pgAdmin 4 ==="
 # Controllo versione Python
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 echo "Python rilevato: $PYTHON_VERSION"
-if [[ "$PYTHON_VERSION" != "3.10."* ]]; then
-    echo "Attenzione: versione Python non 3.10.x, potrebbero esserci problemi di compatibilità"
+if [[ "$PYTHON_VERSION" != "3.10."* && "$PYTHON_VERSION" != "3.11."* && "$PYTHON_VERSION" != "3.12."* ]]; then
+    echo "Attenzione: versione Python non standard, potrebbero esserci problemi di compatibilità"
 fi
 
 # Aggiorna pacchetti e installa dipendenze
@@ -30,33 +30,32 @@ if ! grep -q "pgadmin.org" /etc/apt/sources.list.d/pgadmin.list 2>/dev/null; the
     sudo tee /etc/apt/sources.list.d/pgadmin.list
 fi
 
-# Installa l’ultima versione disponibile di pgAdmin
+# Installa pgAdmin (ultima versione disponibile)
 sudo apt-get update -y
 sudo apt-get install -y pgadmin4
 
 echo "=== [pgAdmin Setup] pgAdmin installato ==="
 
-# Configurazione locale (standalone)
+# Configurazione server mode
 CONFIG_PATH="$HOME/.pgadmin_config_local.py"
 if [ ! -f "$CONFIG_PATH" ]; then
 cat <<EOF > "$CONFIG_PATH"
-SERVER_MODE = False
+SERVER_MODE = True
 DEFAULT_SERVER = '0.0.0.0'
 DEFAULT_SERVER_PORT = 5050
 EOF
 fi
 
-# Variabili ambiente per bind su 0.0.0.0
-export PGADMIN_LISTEN_ADDRESS=0.0.0.0
-export PGADMIN_LISTEN_PORT=5050
+# Imposta variabili ambiente per server mode
+export PGADMIN_CONFIG_SERVER_MODE=True
+export PGADMIN_CONFIG_DEFAULT_SERVER='0.0.0.0'
+export PGADMIN_CONFIG_DEFAULT_SERVER_PORT=5050
 
 # Avvio pgAdmin in background
-echo "=== [pgAdmin Setup] Avvio pgAdmin su 0.0.0.0:5050 ==="
+echo "=== [pgAdmin Setup] Avvio pgAdmin in SERVER MODE su 0.0.0.0:5050 ==="
 nohup python3 /usr/pgadmin4/web/pgAdmin4.py --config "$CONFIG_PATH" > ~/pgadmin.log 2>&1 &
 
-# Breve messaggio informativo (senza loop infinito)
-echo "pgAdmin avviato in background. Potrebbero volerci alcuni secondi prima che risponda."
-echo "Puoi accedere a pgAdmin tramite il port forwarding di Coder sulla porta 5050."
+echo "=== [pgAdmin Setup] pgAdmin avviato in background ==="
+echo "Attendere qualche secondo affinché il server sia pronto."
+echo "Accedi a pgAdmin tramite il port forwarding di Coder sulla porta 5050."
 echo "Controlla l'URL pubblico generato nella sezione Ports del workspace Coder."
-
-echo "=== [pgAdmin Setup] Installazione completata ==="
