@@ -20,14 +20,15 @@ echo "deb [signed-by=/usr/share/keyrings/pgadmin.gpg] https://ftp.postgresql.org
 # Aggiorna repository
 sudo apt-get update -y
 
+export PGADMIN_SETUP_EMAIL="admin@admin.com"
+export PGADMIN_SETUP_PASSWORD="admin@2025"
+export PGADMIN_CONFIG_SERVER_MODE=True
+
 # Installazione pgAdmin4 in server mode senza interazione
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-web
 
 # Configura pgAdmin4 in server mode automaticamente
-sudo /usr/pgadmin4/bin/setup-web.sh <<EOF
-admin@admin.com
-admin@2025
-EOF
+sudo /usr/pgadmin4/bin/setup-web.sh
 
 # Riavvia Apache
 sudo systemctl restart apache2
