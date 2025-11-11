@@ -60,12 +60,15 @@ sudo chown $USER:$USER "$PGADMIN_HOME/web/config_local.py"
 echo "[3/6] Configurazione completata."
 
 
-# --- 5. ESECUZIONE SETUP TRAMITE IL SUO AMBIENTE VIRTUALE ---
+# --- 5. ESECUZIONE SETUP CON VARIABILI INLINE (LA VERA SOLUZIONE) ---
 echo "[4/6] Esecuzione di setup-web.sh per creare l'utente..."
 
-# **LA MODIFICA CRUCIALE:** Aggiunto 'sudo' per risolvere "This script must be run as root"
-# Usiamo il wrapper di setup (che gestisce l'ambiente Python corretto) e lo eseguiamo come root.
-sudo "$PGADMIN_HOME/bin/setup-web.sh" --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
+# **LA MODIFICA CRUCIALE:**
+# Passiamo le variabili d'ambiente con i nomi corretti (PGADMIN_SETUP_*) in linea con `sudo`.
+# Questo soddisfa la richiesta di `root` dello script e fornisce le credenziali in un modo non interattivo.
+sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
+     PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
+     "$PGADMIN_HOME/bin/setup-web.sh" --yes
 
 echo "[4/6] Setup utente e database completato."
 
