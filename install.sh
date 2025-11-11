@@ -61,23 +61,11 @@ echo "[3/6] Configurazione completata."
 
 
 # --- 5. ESECUZIONE SETUP TRAMITE IL SUO AMBIENTE VIRTUALE ---
-echo "[4/6] Esecuzione di setup.py per creare l'utente..."
+echo "[4/6] Esecuzione di setup-web.sh per creare l'utente..."
 
-# **LA MODIFICA CRUCIALE:**
-# Invece di /usr/bin/python3, usiamo il "wrapper" Python che è
-# destinato a eseguire i servizi pgAdmin, assicurando che l'ambiente sia corretto.
-# Questo wrapper si trova nella directory 'bin' dell'installazione apt.
-
-# Il percorso esatto è /usr/bin/python3 <percorso della tua installazione>/web/setup.py,
-# ma proviamo a chiamare lo script di setup direttamente se il sistema lo ha linkato.
-
-# Riprova il comando precedente, ma se fallisce, proviamo la chiamata diretta.
-# (Se setup.py ha fallito, è probabile che l'ambiente virtuale non sia usato)
-# NON CHIAMIAMO /usr/pgadmin4/web/setup.py, ma USIAMO IL COMANDO pgadmin4-setup
-
-/usr/pgadmin4/bin/setup-web.sh --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
-
-# Lo script setup-web.sh chiama setup.py, ma in un ambiente corretto.
+# **LA MODIFICA CRUCIALE:** Aggiunto 'sudo' per risolvere "This script must be run as root"
+# Usiamo il wrapper di setup (che gestisce l'ambiente Python corretto) e lo eseguiamo come root.
+sudo "$PGADMIN_HOME/bin/setup-web.sh" --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
 
 echo "[4/6] Setup utente e database completato."
 
@@ -85,10 +73,8 @@ echo "[4/6] Setup utente e database completato."
 # --- 6. AVVIO DEL SERVER PGADMIN STANDALONE (PORTA 5050) ---
 echo "[5/6] Avvio del server pgAdmin Standalone in background sulla Porta 5050..."
 
-# **LA MODIFICA CRUCIALE 2:**
-# Avviamo il server utilizzando il suo script di avvio designato (non direttamente pgAdmin4.py)
-# che è più probabile che attivi l'ambiente Python corretto.
-nohup /usr/pgadmin4/bin/pgadmin4 2>&1 > pgadmin_server.log &
+# Avviamo il server utilizzando il suo script di avvio designato, come utente Coder.
+nohup "$PGADMIN_HOME/bin/pgadmin4" 2>&1 > pgadmin_server.log &
 
 sleep 2
 
@@ -98,7 +84,6 @@ then
     echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
-    # Se fallisce qui, potresti dover lanciare 'pgAdmin4.py' manualmente per vedere l'errore
     exit 1
 fi
 
