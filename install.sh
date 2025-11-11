@@ -15,10 +15,10 @@ echo "**************************************************"
 export DEBIAN_FRONTEND=noninteractive
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI ---
-echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev, libnspr4)..."
-# AGGIUNTO 'libnspr4' per risolvere l'errore 'libnspr4.so'
+echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev, libnspr4, libnss3)..."
+# AGGIUNTI 'libnspr4' e 'libnss3' per risolvere gli errori di librerie native (.so)
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev libnspr4
+sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev libnspr4 libnss3
 
 # Aggiunta del repository pgAdmin e installazione del pacchetto 'pgadmin4'
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
@@ -84,7 +84,6 @@ then
     echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
-    # Se fallisce qui, potresti dover lanciare 'pgAdmin4.py' manualmente per vedere l'errore
     exit 1
 fi
 
