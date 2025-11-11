@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# =========================================================
+# install.sh — Installazione automatica di pgAdmin4 su Linux
+# Compatibile Python 3.10 e Coder
+# =========================================================
+
 set -e
 
 echo "=== [pgAdmin Setup] Avvio installazione pgAdmin 4 ==="
@@ -7,7 +12,7 @@ echo "=== [pgAdmin Setup] Avvio installazione pgAdmin 4 ==="
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 echo "Python rilevato: $PYTHON_VERSION"
 if [[ "$PYTHON_VERSION" != "3.10."* ]]; then
-    echo "Attenzione: versione Python non 3.10.x, potrebbe non essere completamente supportata"
+    echo "Attenzione: versione Python non 3.10.x, potrebbero esserci problemi di compatibilità"
 fi
 
 # Aggiorna pacchetti e installa dipendenze
@@ -25,7 +30,7 @@ if ! grep -q "pgadmin.org" /etc/apt/sources.list.d/pgadmin.list 2>/dev/null; the
     sudo tee /etc/apt/sources.list.d/pgadmin.list
 fi
 
-# Installa pgAdmin (ultima versione disponibile)
+# Installa l’ultima versione disponibile di pgAdmin
 sudo apt-get update -y
 sudo apt-get install -y pgadmin4
 
@@ -41,16 +46,17 @@ DEFAULT_SERVER_PORT = 5050
 EOF
 fi
 
-# Imposta variabili d'ambiente per forzare il bind su 0.0.0.0
+# Variabili ambiente per bind su 0.0.0.0
 export PGADMIN_LISTEN_ADDRESS=0.0.0.0
 export PGADMIN_LISTEN_PORT=5050
 
 # Avvio pgAdmin in background
+echo "=== [pgAdmin Setup] Avvio pgAdmin su 0.0.0.0:5050 ==="
 nohup python3 /usr/pgadmin4/web/pgAdmin4.py --config "$CONFIG_PATH" > ~/pgadmin.log 2>&1 &
 
-# Attendere che la porta sia pronta
-echo "Attendo che pgAdmin sia pronto sulla porta 5050..."
-while ! nc -z 0.0.0.0 5050; do
-  sleep 1
-done
-echo "pgAdmin pronto! Puoi ora usare il port forwarding di Coder."
+# Breve messaggio informativo (senza loop infinito)
+echo "pgAdmin avviato in background. Potrebbero volerci alcuni secondi prima che risponda."
+echo "Puoi accedere a pgAdmin tramite il port forwarding di Coder sulla porta 5050."
+echo "Controlla l'URL pubblico generato nella sezione Ports del workspace Coder."
+
+echo "=== [pgAdmin Setup] Installazione completata ==="
