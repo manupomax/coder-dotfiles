@@ -50,15 +50,7 @@ echo "[3/5] ServerName impostato."
 # --- 5. ESECUZIONE SETUP NON INTERATTIVO (SOLUZIONE DEFINITIVA) ---
 echo "[4/5] Esecuzione di setup-web.sh per creare l'utente..."
 
-# METODO ROBUSTO: Usiamo --skip-server-start. Se fallisce con 'Usage',
-# rimuovi questo flag e passa al METODO ALTERNATIVO qui sotto.
-# Altrimenti, questo è il modo corretto per bypassare l'errore systemctl.
-sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
-     PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
-     /usr/pgadmin4/bin/setup-web.sh --yes --skip-server-start
-
-# METODO ALTERNATIVO (se --skip-server-start fallisce):
-# sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" /usr/pgadmin4/bin/setup-web.sh --yes
+sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" /usr/pgadmin4/bin/setup-web.sh --yes
 
 echo "[4/5] Setup utente e database completato."
 
