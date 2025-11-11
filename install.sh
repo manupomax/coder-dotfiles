@@ -34,7 +34,7 @@ sudo apt-get update -y
 curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
 
 # Create the repository configuration file:
-sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list && apt update'
+sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list && apt-get update'
 
 #
 # Install pgAdmin
@@ -54,6 +54,7 @@ sudo apt-get install -y pgadmin4-web
 # ==============================
 echo "Configurazione non interattiva di pgAdmin4..."
 
+sudo mkdir -p /etc/pgadmin4
 sudo bash -c "cat > /etc/pgadmin4/config_local.py <<EOF
 SERVER_MODE = True
 DEFAULT_SERVER = '0.0.0.0'
@@ -63,6 +64,6 @@ PGADMIN_SETUP_PASSWORD = '${PGADMIN_PASSWORD}'
 EOF"
 
 # Configure the webserver, if you installed pgadmin4-web:
-sudo /usr/pgadmin4/bin/setup-web.sh
+sudo /usr/pgadmin4/bin/setup-web.sh --yes
 
 echo "=== [pgAdmin Setup] pgAdmin installato ==="
