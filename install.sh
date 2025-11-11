@@ -1,95 +1,69 @@
 #!/bin/bash
+# Script per l'installazione non interattiva di pgAdmin 4 in Server Mode
 
-# --- USCITA IMMEDIATA IN CASO DI ERRORE ---
-set -e
+# --- Configurazioni Iniziali ---
+PGADMIN_EMAIL="admin@esempio.com"      # L'email che userai per accedere
+PGADMIN_PASSWORD="la_tua_password_segreta" # La password che userai per accedere
+PGADMIN_PORT=5050                      # La porta che hai richiesto
 
-# --- 1. IMPOSTAZIONI UTENTE ---
-MY_EMAIL="admin@example.com"
-MY_PASSWORD="AdminSecret123!"
-PGADMIN_HOME="/usr/local/lib/python3.10/dist-packages/pgadmin4" # Percorso standard PIP
-PGADMIN_SERVER_BIN="/usr/local/bin/pgadmin4" # Binario di avvio PIP
+echo "Aggiornamento pacchetti e installazione prerequisiti..."
+sudo apt update -y
+sudo apt install -y curl ca-certificates gnupg
 
-echo "**************************************************"
-echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (MODALITÀ FLASK/PIP - Porta 5050)"
-echo "Metodo più pulito per ambienti Headless (bypassa problemi APT/Grafici)."
-echo "**************************************************"
+# --- 1. Aggiunta del Repository Ufficiale di pgAdmin ---
+# Ottiene la chiave pubblica del repository
+curl -fsSL https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
 
-export DEBIAN_FRONTEND=noninteractive
+# Aggiunge il repository pgAdmin 4
+sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
 
-# --- 2. INSTALLAZIONE PREREQUISITI E DIPENDENZE NATIVE ---
-echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev, native)..."
+# Aggiorna l'indice dei pacchetti per includere il nuovo repository
+sudo apt update -y
 
-sudo apt-get update
-# Installiamo le dipendenze minimali + quelle native che sappiamo mancano
-sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev \
-    libpq-dev # Necessario per il driver PostgreSQL Python
-    
-echo "[1/6] Installazione prerequisiti completata."
+# --- 2. Installazione di pgAdmin 4 in Server Mode ---
+echo "Installazione di pgAdmin 4..."
+# L'installazione di 'pgadmin4-web' installa pgAdmin in modalità server/web
+sudo apt install -y pgadmin4-web
 
+# --- 3. Configurazione Non Interattiva dell'Utente Iniziale ---
+echo "Configurazione non interattiva dell'utente iniziale..."
+# Lo script setup-web.sh è interattivo per impostazione predefinita.
+# Si possono evitare le richieste impostando le variabili d'ambiente
+# PGADMIN_SETUP_EMAIL e PGADMIN_SETUP_PASSWORD, e aggiungendo l'opzione --yes (-y)
+sudo env PGADMIN_SETUP_EMAIL="${PGADMIN_EMAIL}" PGADMIN_SETUP_PASSWORD="${PGADMIN_PASSWORD}" /usr/pgadmin4/bin/setup-web.sh --yes
 
-# --- 3. INSTALLAZIONE PGADMIN VIA PIP E CORREZIONE DEL PERCORSO HOME ---
-echo "[2/6] Installazione di pgAdmin4 tramite PIP (Modalità Server Pura)..."
+# --- 4. Configurazione della Porta e dell'Interfaccia (Opzionale ma Raccomandata) ---
+echo "Configurazione di pgAdmin per l'ascolto su porta ${PGADMIN_PORT}..."
+# In modalità server, pgAdmin utilizza il file /etc/pgadmin4/config_local.py
+# Modifichiamo questo file per impostare l'interfaccia e la porta che hai richiesto (5050)
+PGADMIN_CONFIG_FILE="/etc/pgadmin4/config_local.py"
 
-# Installazione del pacchetto Python puro (questo include tutte le dipendenze Python come typer)
-sudo pip3 install pgadmin4
-# Aggiunta di un'altra dipendenza comune
-sudo pip3 install psycopg2-binary
-
-echo "[2/6] pgAdmin4 installato tramite PIP."
-
-
-# --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO (Modalità Server) ---
-echo "[3/6] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
-
-# Troviamo il percorso dinamico di installazione di pgAdmin (dipende dalla versione Python)
-PGADMIN_WEB_PATH=$(python3 -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))")
-if [ -z "$PGADMIN_WEB_PATH" ]; then
-    echo "❌ ERRORE: Impossibile trovare il percorso di installazione di pgAdmin4.py."
-    exit 1
-fi
-
-# Scrive il file di configurazione nel percorso PIP
-sudo sh -c "cat > $PGADMIN_WEB_PATH/config_local.py" <<EOL
-# File di configurazione locale generato da dotfiles
-# Configura l'ambiente WSGI/Flask per l'accesso remoto
+# Aggiunge le configurazioni necessarie
+# BIND_ALL = True permette di accettare connessioni da qualsiasi IP (necessario in Coder)
+# DEFAULT_SERVER_PORT specifica la porta 5050
+sudo sh -c "cat <<EOF > ${PGADMIN_CONFIG_FILE}
+# Configurazione personalizzata per Coder Workspace
+# Rendere accessibile pgAdmin dall'esterno del localhost (tipico in container/workspace)
 DEFAULT_SERVER = '0.0.0.0'
-DEFAULT_SERVER_PORT = 5050
-EOL
+# Imposta la porta richiesta
+DEFAULT_SERVER_PORT = ${PGADMIN_PORT}
+EOF"
 
-sudo chown $USER:$USER "$PGADMIN_WEB_PATH/config_local.py"
-echo "[3/6] Configurazione completata."
+# --- 5. Riavvio del Servizio ---
+echo "Riavvio del servizio pgAdmin 4 per applicare le modifiche..."
+# Il servizio si chiama tipicamente apache2 o gunicorn a seconda della configurazione predefinita.
+# La configurazione APT installa pgAdmin sotto Apache2 o Gunicorn, qui assumiamo l'uso di Apache2 (comune)
+# Se stai usando una configurazione minimale (senza web server completo), potresti dover usare un comando diverso.
+# Tuttavia, l'installazione 'pgadmin4-web' di solito configura un servizio web.
 
-
-# --- 5. ESECUZIONE SETUP E CREAZIONE UTENTE (Tramite binario PIP) ---
-echo "[4/6] Esecuzione di setup-web (binario PIP) per creare l'utente..."
-# Usiamo il binario di setup fornito da PIP, che usa le variabili d'ambiente
-sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
-     PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
-     "$PGADMIN_SERVER_BIN" --setup-web
-echo "[4/6] Setup utente e database completato."
-
-
-# --- 6. AVVIO DEL SERVER PGADMIN WEB (FLASK/WSGI) ---
-echo "[5/6] Avvio del server pgAdmin WEB in background sulla Porta 5050..."
-
-# Avviamo il server usando il binario fornito da PIP (che è configurato per avviare Flask)
-nohup "$PGADMIN_SERVER_BIN" 2>&1 > pgadmin_server.log &
-
-sleep 2
-
-# Controlla che il processo Python/Flask sia attivo
-if pgrep -f "$PGADMIN_SERVER_BIN" > /dev/null
-then
-    echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
-else
-    echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
-    exit 1
+# Tentativo di riavvio del servizio pgadmin4/apache2
+if sudo systemctl is-active --quiet pgadmin4; then
+    sudo systemctl restart pgadmin4
+elif sudo systemctl is-active --quiet apache2; then
+    sudo systemctl restart apache2
 fi
 
-echo "[6/6] Pulizia e verifica finale..."
-rm -f nohup.out
-
-echo "**************************************************"
-echo "✅ CONFIGURAZIONE COMPLETATA! Il servizio è attivo sulla PORTA 5050."
-echo "Credenziali: $MY_EMAIL / $MY_PASSWORD"
-echo "**************************************************"
+echo "✅ pgAdmin 4 in Server Mode installato e configurato."
+echo "   - Email Amministratore: ${PGADMIN_EMAIL}"
+echo "   - Password Amministratore: ${PGADMIN_PASSWORD}"
+echo "   - Accessibile sulla porta: ${PGADMIN_PORT}"
