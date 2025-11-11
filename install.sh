@@ -10,43 +10,44 @@ PGADMIN_HOME="/usr/pgadmin4"
 
 echo "**************************************************"
 echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (Standalone - Porta 5050)"
-echo "Risoluzione radicale delle dipendenze grafiche (libgbm, libnss, etc.)"
+echo "Risoluzione totale delle dipendenze mancanti (Problema APT)."
 echo "**************************************************"
 
 export DEBIAN_FRONTEND=noninteractive
 
-# --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI ---
+# --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI CRITICI ---
 echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti critici..."
-# Installiamo tutte le dipendenze essenziali in un colpo solo.
-# libgtk-3-0 e libgbm1 sono meta-dipendenze che dovrebbero trascinare le altre.
-sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev \
-    libnspr4 libnss3 libgbm1 libgtk-3-0
 
-# Aggiunta del repository pgAdmin e installazione del pacchetto 'pgadmin4'
+# Installa solo i prerequisiti minimali (pip, curl, gnupg)
+sudo apt-get update
+sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
+
+# Aggiunta del repository pgAdmin
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
 sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgadmin4-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
 sudo apt-get update
-sudo apt-get install -y pgadmin4
 
-echo "[1/6] Installazione apt completata."
+# **LA MODIFICA CRUCIALE:**
+echo "Forzatura dell'installazione del pacchetto pgadmin4 con tutte le dipendenze raccomandate..."
+# Questo risolve la catena di libasound2, libgbm1, libnss3, ecc.
+sudo apt-get install -y --install-recommends pgadmin4
+
+echo "[1/6] Installazione apt completata con tutte le dipendenze."
+
 
 # --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PYTHON ---
-echo "[2/6] Installazione forzata delle dipendenze Python..."
-# Il problema typer è risolto da qui.
+echo "[2/6] Installazione forzata delle dipendenze Python (typer fix)..."
 REQUIREMENTS_FILE="${PGADMIN_HOME}/requirements.txt"
 if [ -f "$REQUIREMENTS_FILE" ]; then
     sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed || sudo pip3 install typer flask cryptography --ignore-installed
 else
     sudo pip3 install typer flask cryptography --ignore-installed
 fi
-
 echo "[2/6] Dipendenze Python installate."
 
 
 # --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO ---
 echo "[3/6] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
-# ... (resta invariato) ...
 sudo rm -f "$PGADMIN_HOME/web/config_local.py"
 sudo sh -c "cat > $PGADMIN_HOME/web/config_local.py" <<EOL
 # File di configurazione locale generato da dotfiles
@@ -78,7 +79,6 @@ then
     echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
-    # Se fallisce qui, potresti dover lanciare manualmente l'eseguibile per vedere l'errore completo
     exit 1
 fi
 
