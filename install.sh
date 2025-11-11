@@ -6,98 +6,87 @@ set -e
 # --- 1. IMPOSTAZIONI UTENTE ---
 MY_EMAIL="admin@example.com"
 MY_PASSWORD="AdminSecret123!"
-PGADMIN_HOME="/usr/pgadmin4" 
+PGADMIN_HOME="/usr/local/lib/python3.10/dist-packages/pgadmin4" # Percorso standard PIP
+PGADMIN_SERVER_BIN="/usr/local/bin/pgadmin4" # Binario di avvio PIP
 
 echo "**************************************************"
-echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (Standalone - Porta 5050)"
-echo "Utilizzo dei comandi ufficiali per il repository e risoluzione dei problemi ambientali."
+echo "AVVIO SCRIPT DOTFILE: Configurazione pgAdmin4 (MODALITÀ FLASK/PIP - Porta 5050)"
+echo "Metodo più pulito per ambienti Headless (bypassa problemi APT/Grafici)."
 echo "**************************************************"
 
 export DEBIAN_FRONTEND=noninteractive
 
-# --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI CRITICI ---
-echo "[1/7] Aggiornamento pacchetti e installazione prerequisiti critici (Python e Nativi)..."
+# --- 2. INSTALLAZIONE PREREQUISITI E DIPENDENZE NATIVE ---
+echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti (pip, python3-dev, native)..."
 
-# 1. Installa i prerequisiti minimali (pip, curl, gnupg)
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev
-
-# 2. **INSTALLAZIONE MANUALE DI TUTTE LE LIBRERIE NATIVE MANCANTI**
-# Risolve libnspr4, libgbm, libasound, ecc.
-sudo apt-get install -y libnspr4 libnss3 libgbm1 libasound2 libgtk-3-0 libappindicator3-1
-
-# 3. **UTILIZZO DEI COMANDI UFFICIALI PER CHIAVE E REPOSITORY**
-echo "Aggiunta della chiave GPG e del repository ufficiale di pgAdmin..."
-
-# Comando Ufficiale 1: Installa la chiave pubblica
-curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
-
-# Comando Ufficiale 2: Crea il file di configurazione e aggiorna apt
-sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list && apt update'
-
-# 4. Installazione del pacchetto pgadmin4
-# Usiamo apt install pgadmin4 (come da documentazione ufficiale)
-sudo apt install -y pgadmin4
-
-echo "[1/7] Installazione apt completata."
+# Installiamo le dipendenze minimali + quelle native che sappiamo mancano
+sudo apt-get install -y curl ca-certificates gnupg python3-pip python3-dev \
+    libpq-dev # Necessario per il driver PostgreSQL Python
+    
+echo "[1/6] Installazione prerequisiti completata."
 
 
-# --- 3. INSTALLAZIONE FORZATA DI TUTTE LE DIPENDENZE PYTHON ---
-echo "[2/7] Installazione forzata delle dipendenze Python (typer fix)..."
-REQUIREMENTS_FILE="${PGADMIN_HOME}/requirements.txt"
-if [ -f "$REQUIREMENTS_FILE" ]; then
-    sudo pip3 install -r "$REQUIREMENTS_FILE" --ignore-installed || sudo pip3 install typer flask cryptography --ignore-installed
-else
-    sudo pip3 install typer flask cryptography --ignore-installed
+# --- 3. INSTALLAZIONE PGADMIN VIA PIP E CORREZIONE DEL PERCORSO HOME ---
+echo "[2/6] Installazione di pgAdmin4 tramite PIP (Modalità Server Pura)..."
+
+# Installazione del pacchetto Python puro (questo include tutte le dipendenze Python come typer)
+sudo pip3 install pgadmin4
+# Aggiunta di un'altra dipendenza comune
+sudo pip3 install psycopg2-binary
+
+echo "[2/6] pgAdmin4 installato tramite PIP."
+
+
+# --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO (Modalità Server) ---
+echo "[3/6] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
+
+# Troviamo il percorso dinamico di installazione di pgAdmin (dipende dalla versione Python)
+PGADMIN_WEB_PATH=$(python3 -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))")
+if [ -z "$PGADMIN_WEB_PATH" ]; then
+    echo "❌ ERRORE: Impossibile trovare il percorso di installazione di pgAdmin4.py."
+    exit 1
 fi
-echo "[2/7] Dipendenze Python installate."
 
-
-# --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO ---
-echo "[3/7] Configurazione di pgAdmin per Porta 5050 e accesso remoto..."
-sudo rm -f "$PGADMIN_HOME/web/config_local.py"
-sudo sh -c "cat > $PGADMIN_HOME/web/config_local.py" <<EOL
+# Scrive il file di configurazione nel percorso PIP
+sudo sh -c "cat > $PGADMIN_WEB_PATH/config_local.py" <<EOL
 # File di configurazione locale generato da dotfiles
+# Configura l'ambiente WSGI/Flask per l'accesso remoto
 DEFAULT_SERVER = '0.0.0.0'
 DEFAULT_SERVER_PORT = 5050
-ALLOWED_HOSTS = ['*']
 EOL
-sudo chown $USER:$USER "$PGADMIN_HOME/web/config_local.py"
-echo "[3/7] Configurazione completata."
+
+sudo chown $USER:$USER "$PGADMIN_WEB_PATH/config_local.py"
+echo "[3/6] Configurazione completata."
 
 
-# --- 5. ESECUZIONE SETUP CON VARIABILI INLINE ---
-echo "[4/7] Esecuzione di setup-web.sh per creare l'utente..."
+# --- 5. ESECUZIONE SETUP E CREAZIONE UTENTE (Tramite binario PIP) ---
+echo "[4/6] Esecuzione di setup-web (binario PIP) per creare l'utente..."
+# Usiamo il binario di setup fornito da PIP, che usa le variabili d'ambiente
 sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
      PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
-     "$PGADMIN_HOME/bin/setup-web.sh" --yes
-echo "[4/7] Setup utente e database completato."
+     "$PGADMIN_SERVER_BIN" --setup-web
+echo "[4/6] Setup utente e database completato."
 
 
-# --- 5.5. RISOLUZIONE DEL PERMESSO SUID CHROME-SANDBOX ---
-echo "[5/7] Configurazione dei permessi SUID per il sandbox di sicurezza..."
-SANDBOX_PATH="$PGADMIN_HOME/bin/chrome-sandbox"
-sudo chown root:root "$SANDBOX_PATH"
-sudo chmod 4755 "$SANDBOX_PATH"
-echo "[5/7] Permessi SUID configurati."
+# --- 6. AVVIO DEL SERVER PGADMIN WEB (FLASK/WSGI) ---
+echo "[5/6] Avvio del server pgAdmin WEB in background sulla Porta 5050..."
 
-
-# --- 6. AVVIO DEL SERVER PGADMIN STANDALONE (PORTA 5050) ---
-echo "[6/7] Avvio del server pgAdmin Standalone in background sulla Porta 5050..."
-nohup "$PGADMIN_HOME/bin/pgadmin4" 2>&1 > pgadmin_server.log &
+# Avviamo il server usando il binario fornito da PIP (che è configurato per avviare Flask)
+nohup "$PGADMIN_SERVER_BIN" 2>&1 > pgadmin_server.log &
 
 sleep 2
 
-# Controlla che il processo sia attivo
-if pgrep -f "pgadmin4" > /dev/null
+# Controlla che il processo Python/Flask sia attivo
+if pgrep -f "$PGADMIN_SERVER_BIN" > /dev/null
 then
-    echo "[6/7] Server pgAdmin avviato correttamente in background sulla porta 5050."
+    echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
     exit 1
 fi
 
-echo "[7/7] Pulizia e verifica finale..."
+echo "[6/6] Pulizia e verifica finale..."
 rm -f nohup.out
 
 echo "**************************************************"
