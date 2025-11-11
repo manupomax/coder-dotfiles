@@ -57,7 +57,7 @@ echo "[6/7] Esecuzione di setup-web.sh in modalità non interattiva (Saltando l'
 # Aggiunto il flag --skip-server-start per evitare l'errore di systemd
 sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
      PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
-     /usr/pgadmin4/bin/setup-web.sh --yes --skip-server-start
+     /usr/pgadmin4/bin/setup-web.sh --yes
 
 echo "[6/7] Setup database pgAdmin completato."
 
