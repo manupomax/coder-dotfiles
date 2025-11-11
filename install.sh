@@ -17,14 +17,13 @@ PGADMIN_HOME="/usr/pgadmin4"
 
 # --- 2. INSTALLAZIONE REPOSITORY E PREREQUISITI ---
 echo "[1/6] Aggiornamento pacchetti e installazione prerequisiti..."
+# Assicurati che 'python3-pip' sia installato per usare pip3
 sudo apt-get update
 sudo apt-get install -y curl ca-certificates gnupg python3-pip
 
-# Aggiunta del repository pgAdmin
+# Aggiunta del repository pgAdmin e installazione del pacchetto 'pgadmin4'
 sudo curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/pgadmin4-archive-keyring.gpg
 sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgadmin4-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
-
-# Installazione del pacchetto 'pgadmin4' (Standalone/Desktop)
 sudo apt-get update
 sudo apt-get install -y pgadmin4
 
@@ -32,9 +31,10 @@ echo "[1/6] Installazione completata."
 
 
 # --- 3. INSTALLAZIONE DIPENDENZA MANCANTE ('typer') ---
-echo "[2/6] Installazione della dipendenza Python 'typer'..."
-# Questo risolve l'errore ModuleNotFoundError
-sudo pip3 install typer
+echo "[2/6] Installazione della dipendenza Python 'typer' nell'ambiente utente..."
+# **CRUCIALE:** Eseguiamo pip3 SENZA sudo e usiamo --user per installare
+# il pacchetto nel percorso locale dell'utente $USER.
+pip3 install typer --user
 
 echo "[2/6] Dipendenza 'typer' installata."
 
@@ -58,7 +58,10 @@ echo "[3/6] Configurazione completata."
 # --- 5. ESECUZIONE SETUP NON INTERATTIVO ---
 echo "[4/6] Esecuzione di setup.py per creare l'utente..."
 
-# Eseguiamo il setup come l'utente Coder ($USER)
+# Eseguiamo il setup come l'utente Coder ($USER).
+# Aggiungiamo il percorso locale delle installazioni Python al PATH (CRUCIALE)
+export PATH="$HOME/.local/bin:$PATH"
+
 /usr/bin/python3 $PGADMIN_HOME/web/setup.py --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
 
 echo "[4/6] Setup utente e database completato."
@@ -70,7 +73,6 @@ echo "[5/6] Avvio del server pgAdmin Standalone in background sulla Porta 5050..
 # Avvia il server Python in background
 nohup /usr/bin/python3 $PGADMIN_HOME/web/pgAdmin4.py 2>&1 > pgadmin_server.log &
 
-# Piccolo ritardo per l'avvio del processo in background
 sleep 2
 
 # Controlla che il processo sia attivo
@@ -83,7 +85,6 @@ else
 fi
 
 echo "[6/6] Pulizia e verifica finale..."
-# Rimuovi il log di nohup per pulizia
 rm -f nohup.out
 
 echo "**************************************************"
