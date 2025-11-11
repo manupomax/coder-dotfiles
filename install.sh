@@ -40,7 +40,7 @@ sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] h
 # sudo apt install pgadmin4-desktop
 
 # Install for web mode only: 
-sudo apt install pgadmin4-web 
+sudo apt install -y pgadmin4-web 
 
 # Configure the webserver, if you installed pgadmin4-web:
 sudo /usr/pgadmin4/bin/setup-web.sh
