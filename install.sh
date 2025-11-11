@@ -28,9 +28,15 @@ source "${VENV_DIR}/bin/activate"
 pip install --upgrade pip setuptools wheel
 pip install pgadmin4
 
-WEB_DIR="${VENV_DIR}/lib/python3*/site-packages/pgadmin4"
+# 4. Individua la directory reale di pgAdmin4 nel virtualenv
+WEB_DIR=$(find "${VENV_DIR}/lib/" -type d -path "*/site-packages/pgadmin4" | head -n 1)
+if [ -z "$WEB_DIR" ]; then
+    echo "Errore: non trovo la directory pgadmin4 nel virtualenv."
+    exit 1
+fi
+echo "Directory pgAdmin4 trovata: ${WEB_DIR}"
 
-echo "4. Creazione config_local.py..."
+echo "5. Creazione config_local.py..."
 cat > "${WEB_DIR}/config_local.py" <<EOF
 SERVER_MODE = True
 DEFAULT_SERVER = '0.0.0.0'
@@ -41,7 +47,7 @@ STORAGE_DIR = '${DATA_DIR}/storage'
 LOG_FILE = '${LOG_DIR}/pgadmin4.log'
 EOF
 
-echo "5. Creazione utente admin non interattivo..."
+echo "6. Creazione utente admin non interattivo..."
 cat > /tmp/pgadmin_create_admin.py <<'PY'
 import os
 from pgadmin import create_app
@@ -73,7 +79,7 @@ python /tmp/pgadmin_create_admin.py
 rm /tmp/pgadmin_create_admin.py
 deactivate
 
-echo "6. Creazione file di servizio systemd..."
+echo "7. Creazione file di servizio systemd..."
 sudo tee "${SERVICE_FILE}" > /dev/null <<EOF
 [Unit]
 Description=pgAdmin 4 Web Service
@@ -92,7 +98,7 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
-echo "7. Ricarica systemd e avvio servizio..."
+echo "8. Ricarica systemd e avvio servizio..."
 sudo systemctl daemon-reload
 sudo systemctl enable pgadmin4
 sudo systemctl start pgadmin4
