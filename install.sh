@@ -52,14 +52,26 @@ sudo chown -R $USER:$USER /var/log/pgadmin4
 echo "[5/6] Permessi impostati."
 
 
-# --- 6. ESECUZIONE SETUP NON INTERATTIVO ---
-echo "[6/6] Esecuzione di setup-web.sh in modalità non interattiva..."
-# Passiamo le variabili "in linea" per evitare problemi con sudo
+# --- 5. ESECUZIONE SETUP NON INTERATTIVO (Salta l'avvio) ---
+echo "[6/7] Esecuzione di setup-web.sh in modalità non interattiva (Saltando l'avvio del server)..."
+# Aggiunto il flag --skip-server-start per evitare l'errore di systemd
 sudo PGADMIN_SETUP_EMAIL="$MY_EMAIL" \
      PGADMIN_SETUP_PASSWORD="$MY_PASSWORD" \
-     /usr/pgadmin4/bin/setup-web.sh --yes
+     /usr/pgadmin4/bin/setup-web.sh --yes --skip-server-start
+
+echo "[6/7] Setup database pgAdmin completato."
+
+
+# --- 6. AVVIO MANUALE DI APACHE (funziona nei container) ---
+echo "[7/7] Avvio manuale del server web Apache (httpd)..."
+
+# Apache in Debian/Ubuntu ha un comando di avvio diretto che
+# non dipende da systemd/init.d ed è usato in molti container.
+# Usiamo 'sudo' perché l'utente Coder di solito non può avviare servizi sulla porta 80/443.
+
+sudo /usr/sbin/apachectl start
 
 echo "**************************************************"
-echo "✅ CONFIGURAZIONE PGADMIN COMPLETATA!"
+echo "✅ CONFIGURAZIONE PGADMIN COMPLETATA E SERVIZIO AVVIATO!"
 echo "Puoi accedere a /pgadmin4 con l'utente: $MY_EMAIL"
 echo "**************************************************"
