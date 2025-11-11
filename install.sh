@@ -31,12 +31,17 @@ echo "[1/6] Installazione completata."
 
 
 # --- 3. INSTALLAZIONE DIPENDENZA MANCANTE ('typer') ---
-echo "[2/6] Installazione della dipendenza Python 'typer' nell'ambiente utente..."
-# **CRUCIALE:** Eseguiamo pip3 SENZA sudo e usiamo --user per installare
-# il pacchetto nel percorso locale dell'utente $USER.
-pip3 install typer --user
+echo "[2/6] Installazione forzata della dipendenza Python 'typer' nell'ambiente di sistema..."
+# **CRUCIALE:** Ripristiniamo l'uso di SUDO per installare Typer a livello globale.
+# Questo è l'unico modo per garantire che /usr/bin/python3 lo trovi sempre.
 
-echo "[2/6] Dipendenza 'typer' installata."
+# Pulizia di qualsiasi installazione precedente (per evitare conflitti)
+sudo pip3 uninstall typer -y || true
+
+# Installazione forzata a livello di sistema
+sudo pip3 install typer
+
+echo "[2/6] Dipendenza 'typer' installata a livello di sistema."
 
 
 # --- 4. CONFIGURAZIONE PORTA E ACCESSO REMOTO ---
@@ -58,10 +63,8 @@ echo "[3/6] Configurazione completata."
 # --- 5. ESECUZIONE SETUP NON INTERATTIVO ---
 echo "[4/6] Esecuzione di setup.py per creare l'utente..."
 
-# Eseguiamo il setup come l'utente Coder ($USER).
-# Aggiungiamo il percorso locale delle installazioni Python al PATH (CRUCIALE)
-export PATH="$HOME/.local/bin:$PATH"
-
+# **IMPORTANTE:** Rimuoviamo la manipolazione del PATH e eseguiamo direttamente.
+# dato che Typer è stato installato a livello di sistema, il setup DEVE funzionare.
 /usr/bin/python3 $PGADMIN_HOME/web/setup.py --yes --email "$MY_EMAIL" --password "$MY_PASSWORD"
 
 echo "[4/6] Setup utente e database completato."
@@ -81,6 +84,7 @@ then
     echo "[5/6] Server pgAdmin avviato correttamente in background sulla porta 5050."
 else
     echo "❌ ERRORE FATALE: Impossibile avviare pgAdmin4. Controlla il log 'pgadmin_server.log'."
+    # Se fallisce qui, potresti dover lanciare 'pgAdmin4.py' manualmente per vedere l'errore
     exit 1
 fi
 
