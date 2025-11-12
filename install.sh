@@ -68,7 +68,18 @@ sudo service apache2 stop || true # Comando di fallback per sistemi non-systemd
 echo "=== 5. Pulizia (opzionale) ==="
 sudo apt-get autoremove -y
 
-echo "=== 6. Avvio del server pgAdmin in background (Flask) ==="
+echo "=== 6. Correzione dei permessi per l'utente ==="
+# !! CORREZIONE PER L'ERRORE 'Permission denied' !!
+# L'installazione crea /var/lib/pgadmin come 'root' o 'pgadmin'.
+# Dobbiamo dare la proprietà di questa directory all'utente corrente ($USER)
+# che sta eseguendo il server Flask.
+# $USER sarà 'emanuele-pomante' (o chiunque esegua lo script).
+sudo mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
+sudo chown -R $USER:$USER /var/lib/pgadmin
+
+echo "Proprietà di /var/lib/pgadmin assegnata a $USER."
+
+echo "=== 7. Avvio del server pgAdmin in background (Flask) ==="
 
 # !! IMPORTANTE: Imposta il server per ascoltare su 0.0.0.0 !!
 # Di default, potrebbe ascoltare su 127.0.0.1 (localhost),
@@ -91,7 +102,7 @@ nohup sh -c 'cd /usr/pgadmin4/web && /usr/pgadmin4/venv/bin/python3 /usr/pgadmin
 echo "In attesa di 5 secondi per permettere al server di avviarsi..."
 sleep 5
 
-echo "=== 7. Verifica dello stato del server ==="
+echo "=== 8. Verifica dello stato del server ==="
 # Controlla se il processo è effettivamente in esecuzione.
 # 'pgrep' cerca nei processi in esecuzione.
 if ! pgrep -f "pgAdmin4.py"; then
