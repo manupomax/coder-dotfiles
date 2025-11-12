@@ -60,16 +60,24 @@ echo "=== 4. Disabilitazione e arresto di Apache2 ==="
 # Dobbiamo disabilitare il servizio Apache installato come dipendenza.
 # Usiamo '|| true' per non far fallire lo script se systemctl non è
 # disponibile o se il servizio non è in esecuzione (comune nei container).
+# Gli errori "System has not been booted with systemd" sono normali qui.
 sudo systemctl disable --now apache2 || true
 sudo systemctl stop apache2 || true
+sudo service apache2 stop || true # Comando di fallback per sistemi non-systemd
 
 echo "=== 5. Pulizia (opzionale) ==="
 sudo apt-get autoremove -y
 
 echo "=== 6. Avvio del server pgAdmin in background (Flask) ==="
+
+# !! IMPORTANTE: Imposta il server per ascoltare su 0.0.0.0 !!
+# Di default, potrebbe ascoltare su 127.0.0.1 (localhost),
+# rendendolo inaccessibile dall'esterno del container Coder.
+# 0.0.0.0 significa "ascolta su tutte le interfacce di rete".
+export PGADMIN_LISTEN_ADDRESS="0.0.0.0"
+
 # Avvia il server in background usando nohup e ridirigendo l'output
 # a un file di log. Questo comando non bloccherà lo script.
-# Il server sarà in ascolto su 0.0.0.0:5050 (default)
 nohup /usr/pgadmin4/venv/bin/python3 /usr/pgadmin4/web/pgAdmin4.py > /tmp/pgadmin4.log 2>&1 &
 
 echo "========================================"
@@ -80,7 +88,7 @@ echo " Utente admin creato: ${PGADMIN_EMAIL}"
 echo " Apache2 è stato disabilitato."
 echo " Server Flask di pgAdmin avviato in background."
 echo
-echo "   >> pgAdmin è in esecuzione su http://localhost:5050 <<"
+echo "   >> pgAdmin è in esecuzione su http://<IP_TUO_WORKSPACE>:5050 <<"
 echo
 echo "Il log è disponibile in: /tmp/pgadmin4.log"
 echo
