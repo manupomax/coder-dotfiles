@@ -23,7 +23,7 @@ PGADMIN_PASSWORD="YourStrongPassword123!"
 
 # Interrompi lo script in caso di errori (e), stampa i comandi (x),
 # e fallisci se una variabile non è impostata (u).
-set -euxo pipefail
+set -euo pipefail
 
 echo "=== 1. Installazione prerequisiti (curl, gpg) ==="
 sudo apt-get update
@@ -78,7 +78,36 @@ export PGADMIN_LISTEN_ADDRESS="0.0.0.0"
 
 # Avvia il server in background usando nohup e ridirigendo l'output
 # a un file di log. Questo comando non bloccherà lo script.
-nohup /usr/pgadmin4/venv/bin/python3 /usr/pgadmin4/web/pgAdmin4.py > /tmp/pgadmin4.log 2>&1 &
+#
+# !! MODIFICA CHIAVE:
+# Eseguiamo 'sh -c' per raggruppare due comandi:
+# 1. cd /usr/pgadmin4/web/  ->  Questo è fondamentale. pgAdmin DEVE essere eseguito
+#                                da questa directory per trovare i suoi file.
+# 2. /usr/pgadmin4/venv/bin/python3 ... -> Questo è il comando di avvio.
+#
+echo "Avvio di pgAdmin4.py dalla directory /usr/pgadmin4/web/..."
+nohup sh -c 'cd /usr/pgadmin4/web && /usr/pgadmin4/venv/bin/python3 /usr/pgadmin4/web/pgAdmin4.py' > /tmp/pgadmin4.log 2>&1 &
+
+echo "In attesa di 5 secondi per permettere al server di avviarsi..."
+sleep 5
+
+echo "=== 7. Verifica dello stato del server ==="
+# Controlla se il processo è effettivamente in esecuzione.
+# 'pgrep' cerca nei processi in esecuzione.
+if ! pgrep -f "pgAdmin4.py"; then
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "!!! ERRORE: Il processo pgAdmin4 non è riuscito ad avviarsi. !!!"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "L'errore 502 è probabilmente causato da questo."
+    echo "Contenuto del log (/tmp/pgadmin4.log):"
+    echo "--------------------------------------------------------------"
+    cat /tmp/pgadmin4.log
+    echo "--------------------------------------------------------------"
+    exit 1
+else
+    echo "Successo: il processo pgAdmin4 è in esecuzione."
+fi
+
 
 echo "========================================"
 echo " INSTALLAZIONE E AVVIO COMPLETATI "
