@@ -1,85 +1,96 @@
 #!/bin/bash
-# Script per l'installazione non interattiva di pgAdmin 4 in Server Mode per Coder
+# Script per l'installazione non interattiva di pgAdmin 4 in Server Mode tramite PIP/VENV per Coder
+# Tutti i comandi apt sono stati sostituiti con apt-get
 
 # --- Configurazioni Utente ---
 PGADMIN_EMAIL="admin@esempio.com"
 PGADMIN_PASSWORD="la_tua_password_segreta"
 PGADMIN_PORT=5050
 
-# --- Percorsi e File ---
-PGADMIN_ROOT_DIR="/usr/pgadmin4"
-PGADMIN_WEB_SETUP="${PGADMIN_ROOT_DIR}/bin/setup-web.sh"
-PGADMIN_CONFIG_DIR="/etc/pgadmin4"
+# --- Percorsi Controllati ---
+PGADMIN_HOME="/opt/pgadmin4" # Directory di installazione controllata
+PGADMIN_VENV="${PGADMIN_HOME}/venv"
+PGADMIN_CONFIG_DIR="${PGADMIN_HOME}/config"
+PGADMIN_LOG_DIR="${PGADMIN_HOME}/log"
+PGADMIN_STORAGE_DIR="${PGADMIN_HOME}/storage"
 PGADMIN_CONFIG_FILE="${PGADMIN_CONFIG_DIR}/config_local.py"
 
 echo "Aggiornamento pacchetti e installazione prerequisiti..."
-sudo apt update -y
-sudo apt install -y curl ca-certificates gnupg
+# Uso di apt-get
+sudo apt-get update -y
+# Uso di apt-get
+sudo apt-get install -y python3 python3-pip python3-venv libpq-dev libgmp3-dev build-essential
 
-# --- 1. Aggiunta del Repository e Installazione di pgAdmin 4 ---
-echo "Installazione di pgAdmin 4 in Server Mode (via repository APT)..."
-curl -fsSL https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
-sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
-sudo apt update -y
-# Installiamo solo la versione web, che non trascina dipendenze grafiche
-sudo apt install -y pgadmin4-web
+# --- 1. Creazione e Attivazione dell'Ambiente Virtuale (VENV) ---
+echo "Creazione dell'ambiente virtuale in ${PGADMIN_VENV}..."
+sudo mkdir -p "${PGADMIN_HOME}"
+sudo chown -R "$(whoami)" "${PGADMIN_HOME}" # Assicuriamo i permessi all'utente del workspace
 
-# --- 2. Creazione della Directory di Configurazione Mancante ---
-echo "Creazione della directory di configurazione: ${PGADMIN_CONFIG_DIR}"
-sudo mkdir -p "${PGADMIN_CONFIG_DIR}"
+python3 -m venv "${PGADMIN_VENV}"
+source "${PGADMIN_VENV}/bin/activate"
 
-# --- 3. Configurazione Non Interattiva dell'Utente Iniziale ---
-echo "Configurazione non interattiva dell'utente iniziale..."
-# Eseguiamo lo script di setup che crea il DB interno (sqlite) e l'utente amministratore
-if [ -f "${PGADMIN_WEB_SETUP}" ]; then
-    sudo env PGADMIN_SETUP_EMAIL="${PGADMIN_EMAIL}" PGADMIN_SETUP_PASSWORD="${PGADMIN_PASSWORD}" "${PGADMIN_WEB_SETUP}" --yes
-else
-    echo "⚠️ Avviso: Lo script di setup non è stato trovato in ${PGADMIN_WEB_SETUP}. Procedi senza setup automatico."
-fi
+# --- 2. Installazione di pgAdmin 4 e Gunicorn tramite PIP ---
+echo "Installazione di pgAdmin 4 e Gunicorn..."
+# Installiamo pgAdmin 4 e Gunicorn (il server WSGI per l'esecuzione)
+pip install pgadmin4 gunicorn
+
+# --- 3. Creazione delle Directory di Runtime e Configurazione ---
+echo "Creazione delle directory di runtime necessarie..."
+mkdir -p "${PGADMIN_CONFIG_DIR}"
+mkdir -p "${PGADMIN_LOG_DIR}"
+mkdir -p "${PGADMIN_STORAGE_DIR}"
 
 # --- 4. Configurazione della Porta e dell'Interfaccia ---
 echo "Creazione di config_local.py per l'ascolto su 0.0.0.0:${PGADMIN_PORT}..."
-# Creiamo il file di configurazione per impostare l'ascolto su tutti gli IP e la porta 5050
-sudo sh -c "cat <<EOF > ${PGADMIN_CONFIG_FILE}
-# Configurazione personalizzata per Coder Workspace
-# Ascolta su tutti gli indirizzi (0.0.0.0) per essere accessibile dal container
+
+# Creiamo il file di configurazione per impostare i percorsi e la porta
+cat <<EOF > "${PGADMIN_CONFIG_FILE}"
+# Configurazione personalizzata per Coder Workspace (VENV/PIP)
+import os
+
+# Imposta i percorsi delle directory create da noi
+DATA_DIR = os.path.realpath(os.path.expanduser(u'${PGADMIN_CONFIG_DIR}'))
+LOG_FILE = os.path.join(DATA_DIR, 'pgadmin4.log')
+SQLITE_PATH = os.path.join(DATA_DIR, 'pgadmin4.db') # Database di configurazione
+SESSION_DB_PATH = os.path.join(DATA_DIR, 'sessions')
+STORAGE_DIR = os.path.realpath(os.path.expanduser(u'${PGADMIN_STORAGE_DIR}'))
+
+# Interfaccia e Porta per l'accesso remoto (0.0.0.0)
 DEFAULT_SERVER = '0.0.0.0'
-# Imposta la porta richiesta
 DEFAULT_SERVER_PORT = ${PGADMIN_PORT}
-EOF"
 
-# --- 5. Avvio Manuale di pgAdmin 4 (Bypass di systemd/Apache) ---
-echo "Avvio manuale di pgAdmin 4 in background con Gunicorn..."
+# Aggiunge il percorso di configurazione all'ambiente Python
+import sys
+sys.path.append('${PGADMIN_CONFIG_DIR}')
+EOF
 
-# L'installazione APT spesso usa Apache2 (che fallisce senza systemd).
-# Cerchiamo il percorso del virtual environment/package per avviare il server Gunicorn direttamente.
+# --- 5. Configurazione Non Interattiva dell'Utente Iniziale ---
+echo "Configurazione non interattiva dell'utente iniziale..."
+PGADMIN_PACKAGE_DIR=$(python -c "import pgadmin4; print(pgadmin4.__file__)" | sed 's/__init__.pyc?//')
 
-# Percorso standard della webapp pgAdmin (può variare, ma è comune per APT)
-PGADMIN_APP_PATH="/usr/share/pgadmin4"
-PGADMIN_VENV="/usr/lib/pgadmin4/venv"
+# Settiamo le variabili d'ambiente per il setup non interattivo
+export PGADMIN_SETUP_EMAIL="${PGADMIN_EMAIL}"
+export PGADMIN_SETUP_PASSWORD="${PGADMIN_PASSWORD}"
 
-if [ -d "${PGADMIN_VENV}" ]; then
-    # Avvia pgAdmin utilizzando l'eseguibile python all'interno del venv e Gunicorn
-    # Lo facciamo in background (&) per non bloccare lo script di setup del workspace
-    echo "Utilizzo dell'ambiente virtuale ${PGADMIN_VENV} per l'avvio."
-    
-    # Esegui Gunicorn in background con i parametri necessari
-    # L'opzione `--daemon` non è usata per dare a Coder la possibilità di monitorare il processo.
-    # Usiamo 'nohup' per assicurare che il processo sopravviva all'uscita dello script.
-    
-    nohup sudo "${PGADMIN_VENV}/bin/gunicorn" \
-        --bind "0.0.0.0:${PGADMIN_PORT}" \
-        --workers=1 \
-        --threads=25 \
-        --chdir "${PGADMIN_APP_PATH}" \
-        pgAdmin4:app > /var/log/pgadmin4.log 2>&1 &
-    
-    echo "🎉 pgAdmin 4 avviato in background sulla porta ${PGADMIN_PORT}."
-    echo "Controlla i log in /var/log/pgadmin4.log se non è raggiungibile."
+# Eseguiamo il setup del database (che legge le variabili d'ambiente per l'utente)
+python "${PGADMIN_PACKAGE_DIR}/setup.py"
 
-else
-    echo "❌ Errore: Ambiente virtuale di pgAdmin non trovato in ${PGADMIN_VENV}. Impossibile avviare manualmente."
-    echo "Per ambienti non-systemd, l'installazione PIP/VENV è spesso più robusta."
-fi
+# --- 6. Avvio Manuale di pgAdmin 4 con Gunicorn ---
+echo "Avvio manuale di pgAdmin 4 in background con Gunicorn sulla porta ${PGADMIN_PORT}..."
 
+# Avvia Gunicorn in background (`nohup ... &`) utilizzando l'app pgAdmin4
+nohup gunicorn \
+    --bind "0.0.0.0:${PGADMIN_PORT}" \
+    --workers=1 \
+    --threads=25 \
+    --daemon \
+    --chdir "${PGADMIN_PACKAGE_DIR}" \
+    pgAdmin4:app > "${PGADMIN_LOG_DIR}/gunicorn.log" 2>&1 &
+
+# Disattiviamo l'ambiente virtuale
+deactivate
+
+echo "🎉 pgAdmin 4 avviato in background sulla porta ${PGADMIN_PORT}."
+echo "   - Accesso con: Email: ${PGADMIN_EMAIL} | Password: ${PGADMIN_PASSWORD}"
+echo "   - Log di Gunicorn: ${PGADMIN_LOG_DIR}/gunicorn.log"
 echo "✅ Script di installazione pgAdmin 4 completato."
