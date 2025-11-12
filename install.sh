@@ -10,8 +10,8 @@
 # 4. Sfrutta le variabili PGADMIN_SETUP_EMAIL/PASSWORD per automatizzare lo script
 #    di setup di pgAdmin che viene eseguito durante l'installazione.
 # 5. Disabilita e ferma il server 'apache2' (che è una dipendenza).
-# 6. Fornisce il comando finale per avviare il server Flask (che dovrai
-#    usare nella configurazione 'coder_apps' o come comando di avvio).
+# 6. Corregge i permessi delle directory di configurazione e log.
+# 7. Avvia il server Flask sulla porta 5050 e sull'indirizzo 0.0.0.0.
 #
 
 # --- INIZIO CONFIGURAZIONE UTENTE ---
@@ -69,22 +69,22 @@ echo "=== 5. Pulizia (opzionale) ==="
 sudo apt-get autoremove -y
 
 echo "=== 6. Correzione dei permessi per l'utente ==="
-# !! CORREZIONE PER L'ERRORE 'Permission denied' !!
-# L'installazione crea /var/lib/pgadmin come 'root' o 'pgadmin'.
-# Dobbiamo dare la proprietà di questa directory all'utente corrente ($USER)
-# che sta eseguendo il server Flask.
-# $USER sarà 'emanuele-pomante' (o chiunque esegua lo script).
+# !! CORREZIONE FONDAMENTALE PER GLI ERRORI 'Permission denied' !!
+# L'installazione crea /var/lib/pgadmin e /var/log/pgadmin come 'root'.
+# Dobbiamo dare la proprietà di queste directory all'utente corrente ($USER)
+# che sta eseguendo il server Flask, altrimenti l'avvio fallisce.
 sudo mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
+sudo mkdir -p /var/log/pgadmin
 sudo chown -R $USER:$USER /var/lib/pgadmin
+sudo chown -R $USER:$USER /var/log/pgadmin
 
-echo "Proprietà di /var/lib/pgadmin assegnata a $USER."
+echo "Proprietà di /var/lib/pgadmin (database) e /var/log/pgadmin (log) assegnate a $USER."
 
 echo "=== 7. Avvio del server pgAdmin in background (Flask) ==="
 
 # !! IMPORTANTE: Imposta il server per ascoltare su 0.0.0.0 !!
-# Di default, potrebbe ascoltare su 127.0.0.1 (localhost),
-# rendendolo inaccessibile dall'esterno del container Coder.
-# 0.0.0.0 significa "ascolta su tutte le interfacce di rete".
+# 0.0.0.0 significa "ascolta su tutte le interfacce di rete" ed è necessario
+# per l'accesso esterno tramite il proxy di Coder.
 export PGADMIN_LISTEN_ADDRESS="0.0.0.0"
 
 # Avvia il server in background usando nohup e ridirigendo l'output
@@ -92,9 +92,8 @@ export PGADMIN_LISTEN_ADDRESS="0.0.0.0"
 #
 # !! MODIFICA CHIAVE:
 # Eseguiamo 'sh -c' per raggruppare due comandi:
-# 1. cd /usr/pgadmin4/web/  ->  Questo è fondamentale. pgAdmin DEVE essere eseguito
-#                                da questa directory per trovare i suoi file.
-# 2. /usr/pgadmin4/venv/bin/python3 ... -> Questo è il comando di avvio.
+# 1. cd /usr/pgadmin4/web/  ->  pgAdmin DEVE essere eseguito da qui.
+# 2. /usr/pgadmin4/venv/bin/python3 ... -> Comando di avvio.
 #
 echo "Avvio di pgAdmin4.py dalla directory /usr/pgadmin4/web/..."
 nohup sh -c 'cd /usr/pgadmin4/web && /usr/pgadmin4/venv/bin/python3 /usr/pgadmin4/web/pgAdmin4.py' > /tmp/pgadmin4.log 2>&1 &
@@ -104,7 +103,6 @@ sleep 5
 
 echo "=== 8. Verifica dello stato del server ==="
 # Controlla se il processo è effettivamente in esecuzione.
-# 'pgrep' cerca nei processi in esecuzione.
 if ! pgrep -f "pgAdmin4.py"; then
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     echo "!!! ERRORE: Il processo pgAdmin4 non è riuscito ad avviarsi. !!!"
