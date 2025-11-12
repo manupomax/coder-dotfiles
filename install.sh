@@ -1,117 +1,87 @@
 #!/bin/bash
-# Script per l'installazione non interattiva di pgAdmin 4 in Server Mode tramite PIP/VENV per Coder
-# Corretto l'errore di percorso del setup.py
+#
+# Script per installare pgAdmin 4 in modalità server (Flask su 5050)
+# in modo non interattivo, ideale per dotfiles di Coder.
+#
+# Esegue i seguenti passaggi:
+# 1. Configura le variabili d'ambiente per l'utente admin.
+# 2. Aggiunge il repository APT ufficiale di pgAdmin.
+# 3. Installa 'pgadmin4-web' in modo non interattivo (DEBIAN_FRONTEND).
+# 4. Sfrutta le variabili PGADMIN_SETUP_EMAIL/PASSWORD per automatizzare lo script
+#    di setup di pgAdmin che viene eseguito durante l'installazione.
+# 5. Disabilita e ferma il server 'apache2' (che è una dipendenza).
+# 6. Fornisce il comando finale per avviare il server Flask (che dovrai
+#    usare nella configurazione 'coder_apps' o come comando di avvio).
+#
 
-# --- Configurazioni Utente ---
-PGADMIN_EMAIL="admin@esempio.com"
-PGADMIN_PASSWORD="la_tua_password_segreta"
-PGADMIN_PORT=5050
+# --- INIZIO CONFIGURAZIONE UTENTE ---
+# Modifica queste variabili per impostare l'utente admin di pgAdmin
+PGADMIN_EMAIL="admin@example.com"
+PGADMIN_PASSWORD="YourStrongPassword123!"
+# --- FINE CONFIGURAZIONE UTENTE ---
 
-# --- Percorsi Controllati ---
-PGADMIN_HOME="/opt/pgadmin4" # Directory di installazione controllata
-PGADMIN_VENV="${PGADMIN_HOME}/venv"
-PGADMIN_CONFIG_DIR="${PGADMIN_HOME}/config"
-PGADMIN_LOG_DIR="${PGADMIN_HOME}/log"
-PGADMIN_STORAGE_DIR="${PGADMIN_HOME}/storage"
-PGADMIN_CONFIG_FILE="${PGADMIN_CONFIG_DIR}/config_local.py"
 
-echo "Aggiornamento pacchetti e installazione prerequisiti..."
-sudo apt-get update -y
-sudo apt-get install -y python3 python3-pip python3-venv libpq-dev libgmp3-dev build-essential
+# Interrompi lo script in caso di errori (e), stampa i comandi (x),
+# e fallisci se una variabile non è impostata (u).
+set -euxo pipefail
 
-# --- 1. Creazione e Attivazione dell'Ambiente Virtuale (VENV) ---
-echo "Creazione dell'ambiente virtuale in ${PGADMIN_VENV}..."
-sudo mkdir -p "${PGADMIN_HOME}"
-sudo chown -R "$(whoami)" "${PGADMIN_HOME}"
+echo "=== 1. Installazione prerequisiti (curl, gpg) ==="
+sudo apt-get update
+# lsb-release è necessario per $(lsb_release -cs)
+sudo apt-get install -y curl gpg lsb-release
 
-python3 -m venv "${PGADMIN_VENV}"
-source "${PGADMIN_VENV}/bin/activate"
+echo "=== 2. Aggiunta del repository APT ufficiale di pgAdmin ==="
+# Importa la chiave GPG ufficiale di pgAdmin
+curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
 
-# --- 2. Installazione di pgAdmin 4 e Gunicorn tramite PIP ---
-echo "Installazione di pgAdmin 4 e Gunicorn..."
-pip install pgadmin4 gunicorn
+# Aggiunge il repository alla lista dei sorgenti APT
+sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list'
 
-# --- 3. Creazione delle Directory di Runtime e Configurazione ---
-echo "Creazione delle directory di runtime necessarie..."
-mkdir -p "${PGADMIN_CONFIG_DIR}"
-mkdir -p "${PGADMIN_LOG_DIR}"
-mkdir -p "${PGADMIN_STORAGE_DIR}"
+# Aggiorna l'elenco dei pacchetti dopo l'aggiunta del nuovo repo
+sudo apt-get update
 
-# --- 4. Configurazione della Porta e dell'Interfaccia ---
-echo "Creazione di config_local.py per l'ascolto su 0.0.0.0:${PGADMIN_PORT}..."
-
-cat <<EOF > "${PGADMIN_CONFIG_FILE}"
-# Configurazione personalizzata per Coder Workspace (VENV/PIP)
-import os
-
-# Imposta i percorsi delle directory create da noi
-DATA_DIR = os.path.realpath(os.path.expanduser(u'${PGADMIN_CONFIG_DIR}'))
-LOG_FILE = os.path.join(DATA_DIR, 'pgadmin4.log')
-SQLITE_PATH = os.path.join(DATA_DIR, 'pgadmin4.db')
-SESSION_DB_PATH = os.path.join(DATA_DIR, 'sessions')
-STORAGE_DIR = os.path.realpath(os.path.expanduser(u'${PGADMIN_STORAGE_DIR}'))
-
-# Interfaccia e Porta per l'accesso remoto (0.0.0.0)
-DEFAULT_SERVER = '0.0.0.0'
-DEFAULT_SERVER_PORT = ${PGADMIN_PORT}
-
-# Aggiunge il percorso di configurazione all'ambiente Python
-import sys
-sys.path.append('${PGADMIN_CONFIG_DIR}')
-EOF
-
-# --- 5. Configurazione Non Interattiva dell'Utente Iniziale (CORRETTO) ---
-echo "Configurazione non interattiva dell'utente iniziale..."
-
-# [NUOVA LOGICA PIÙ AFFIDABILE]
-# 1. Trova il percorso del modulo pgadmin4 nel venv.
-# 2. Risale alla directory 'web' dove risiede setup.py per pgAdmin.
-PGADMIN_PACKAGE_DIR=$(python -c "import pgadmin4; print(os.path.dirname(pgadmin4.__file__))" 2>/dev/null)
-
-if [ -z "${PGADMIN_PACKAGE_DIR}" ]; then
-    echo "❌ Errore critico: Impossibile trovare la directory del pacchetto pgadmin4."
-    deactivate
-    exit 1
-fi
-
-PGADMIN_SETUP_SCRIPT="${PGADMIN_PACKAGE_DIR}/setup.py"
-
-if [ ! -f "${PGADMIN_SETUP_SCRIPT}" ]; then
-    # In alcune versioni, setup.py è nella sottodirectory 'web'
-    PGADMIN_SETUP_SCRIPT="${PGADMIN_PACKAGE_DIR}/web/setup.py"
-fi
-
-if [ ! -f "${PGADMIN_SETUP_SCRIPT}" ]; then
-    echo "❌ Errore critico: Impossibile trovare lo script setup.py di pgAdmin."
-    deactivate
-    exit 1
-fi
-
-# Settiamo le variabili d'ambiente per il setup non interattivo
+echo "=== 3. Installazione non interattiva di pgAdmin (pgadmin4-web) ==="
+# Esporta le variabili d'ambiente. Lo script 'setup-web.sh' di pgAdmin,
+# eseguito durante l'installazione del pacchetto, le rileverà e
+# configurerà l'utente admin automaticamente.
 export PGADMIN_SETUP_EMAIL="${PGADMIN_EMAIL}"
 export PGADMIN_SETUP_PASSWORD="${PGADMIN_PASSWORD}"
 
-# Eseguiamo il setup del database
-echo "Esecuzione di ${PGADMIN_SETUP_SCRIPT}..."
-python "${PGADMIN_SETUP_SCRIPT}"
+# Imposta DEBIAN_FRONTEND=noninteractive per prevenire qualsiasi
+# prompt interattivo da parte di apt o degli script di post-installazione.
+export DEBIAN_FRONTEND=noninteractive
 
-# --- 6. Avvio Manuale di pgAdmin 4 con Gunicorn ---
-echo "Avvio manuale di pgAdmin 4 in background con Gunicorn sulla porta ${PGADMIN_PORT}..."
+# Installa il pacchetto. Questo installerà anche 'apache2' come dipendenza
+# e configurerà pgAdmin per funzionare con esso tramite WSGI.
+sudo apt-get install -y pgadmin4-web
 
-# La directory di Gunicorn per l'avvio è la directory del pacchetto pgadmin4
-# L'applicazione è pgAdmin4:app all'interno di quella directory
-nohup gunicorn \
-    --bind "0.0.0.0:${PGADMIN_PORT}" \
-    --workers=1 \
-    --threads=25 \
-    --daemon \
-    --chdir "${PGADMIN_PACKAGE_DIR}" \
-    pgAdmin4:app > "${PGADMIN_LOG_DIR}/gunicorn.log" 2>&1 &
+echo "=== 4. Disabilitazione e arresto di Apache2 ==="
+# Il requisito è di usare il server Flask sulla 5050, non Apache sulla 80.
+# Dobbiamo disabilitare il servizio Apache installato come dipendenza.
+# Usiamo '|| true' per non far fallire lo script se systemctl non è
+# disponibile o se il servizio non è in esecuzione (comune nei container).
+sudo systemctl disable --now apache2 || true
+sudo systemctl stop apache2 || true
 
-# Disattiviamo l'ambiente virtuale
-deactivate
+echo "=== 5. Pulizia (opzionale) ==="
+sudo apt-get autoremove -y
 
-echo "🎉 pgAdmin 4 avviato in background sulla porta ${PGADMIN_PORT}."
-echo "   - Accesso con: Email: ${PGADMIN_EMAIL} | Password: ${PGADMIN_PASSWORD}"
-echo "   - Log di Gunicorn: ${PGADMIN_LOG_DIR}/gunicorn.log"
-echo "✅ Script di installazione pgAdmin 4 completato."
+echo "=== 6. Avvio del server pgAdmin in background (Flask) ==="
+# Avvia il server in background usando nohup e ridirigendo l'output
+# a un file di log. Questo comando non bloccherà lo script.
+# Il server sarà in ascolto su 0.0.0.0:5050 (default)
+nohup /usr/pgadmin4/venv/bin/python3 /usr/pgadmin4/web/pgAdmin4.py > /tmp/pgadmin4.log 2>&1 &
+
+echo "========================================"
+echo " INSTALLAZIONE E AVVIO COMPLETATI "
+echo "========================================"
+echo
+echo " Utente admin creato: ${PGADMIN_EMAIL}"
+echo " Apache2 è stato disabilitato."
+echo " Server Flask di pgAdmin avviato in background."
+echo
+echo "   >> pgAdmin è in esecuzione su http://localhost:5050 <<"
+echo
+echo "Il log è disponibile in: /tmp/pgadmin4.log"
+echo
+echo "Assicurati di mappare la porta 5050 nel tuo workspace Coder."
